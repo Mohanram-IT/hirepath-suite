@@ -49,10 +49,14 @@ function VacancyDetail() {
     queryFn: async () => {
       const { data } = await supabase
         .from("comments")
-        .select("*, profiles!comments_author_id_fkey(full_name, email)")
+        .select("*")
         .eq("vacancy_id", id)
         .order("created_at", { ascending: false });
-      return data ?? [];
+      if (!data) return [];
+      const authorIds = [...new Set(data.map((c) => c.author_id))];
+      const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", authorIds);
+      const map = new Map((profs ?? []).map((p) => [p.id, p]));
+      return data.map((c) => ({ ...c, author: map.get(c.author_id) ?? null }));
     },
   });
 
@@ -61,10 +65,14 @@ function VacancyDetail() {
     queryFn: async () => {
       const { data } = await supabase
         .from("extensions")
-        .select("*, profiles!extensions_approved_by_fkey(full_name, email)")
+        .select("*")
         .eq("vacancy_id", id)
         .order("approved_at", { ascending: false });
-      return data ?? [];
+      if (!data) return [];
+      const ids = [...new Set(data.map((e) => e.approved_by).filter(Boolean))] as string[];
+      const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", ids);
+      const map = new Map((profs ?? []).map((p) => [p.id, p]));
+      return data.map((e) => ({ ...e, approver: e.approved_by ? map.get(e.approved_by) : null }));
     },
   });
 
