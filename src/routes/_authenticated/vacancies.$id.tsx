@@ -183,7 +183,7 @@ function VacancyDetail() {
                 {comments.map((c) => (
                   <div key={c.id} className="border-l-2 border-accent pl-3">
                     <div className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">{c.profiles?.full_name ?? c.profiles?.email ?? "Someone"}</span> · {format(new Date(c.created_at), "PPp")}
+                      <span className="font-medium text-foreground">{c.author?.full_name ?? c.author?.email ?? "Someone"}</span> · {format(new Date(c.created_at), "PPp")}
                     </div>
                     <div className="text-sm mt-0.5 whitespace-pre-wrap">{c.body}</div>
                   </div>
@@ -212,7 +212,7 @@ function VacancyDetail() {
                       </div>
                       <div className="mt-1">{e.reason}</div>
                       {e.approval_notes && <div className="text-xs text-muted-foreground mt-1">{e.approval_notes}</div>}
-                      <div className="text-xs text-muted-foreground mt-1">by {e.profiles?.full_name ?? e.profiles?.email ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground mt-1">by {e.approver?.full_name ?? e.approver?.email ?? "—"}</div>
                     </div>
                   ))}
                 </div>
