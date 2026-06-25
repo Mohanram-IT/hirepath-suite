@@ -115,6 +115,9 @@ function VacancyDetail() {
             <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/vacancies" })}>
               <ArrowLeft className="size-4" /> Back
             </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/vacancies/$id/pipeline" params={{ id }}>Pipeline</Link>
+            </Button>
             <Select value={vacancy.status} onValueChange={(v) => updateStatus.mutate(v)}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
