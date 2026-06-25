@@ -15,8 +15,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
 import { Route as AuthenticatedVacanciesIndexRouteImport } from './routes/_authenticated/vacancies.index'
+import { Route as AuthenticatedCandidatesIndexRouteImport } from './routes/_authenticated/candidates.index'
 import { Route as AuthenticatedVacanciesNewRouteImport } from './routes/_authenticated/vacancies.new'
 import { Route as AuthenticatedVacanciesIdRouteImport } from './routes/_authenticated/vacancies.$id'
+import { Route as AuthenticatedCandidatesNewRouteImport } from './routes/_authenticated/candidates.new'
+import { Route as AuthenticatedCandidatesIdRouteImport } from './routes/_authenticated/candidates.$id'
+import { Route as AuthenticatedVacanciesIdPipelineRouteImport } from './routes/_authenticated/vacancies.$id.pipeline'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -48,6 +52,12 @@ const AuthenticatedVacanciesIndexRoute =
     path: '/vacancies/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCandidatesIndexRoute =
+  AuthenticatedCandidatesIndexRouteImport.update({
+    id: '/candidates/',
+    path: '/candidates/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVacanciesNewRoute =
   AuthenticatedVacanciesNewRouteImport.update({
     id: '/vacancies/new',
@@ -60,24 +70,50 @@ const AuthenticatedVacanciesIdRoute =
     path: '/vacancies/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCandidatesNewRoute =
+  AuthenticatedCandidatesNewRouteImport.update({
+    id: '/candidates/new',
+    path: '/candidates/new',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCandidatesIdRoute =
+  AuthenticatedCandidatesIdRouteImport.update({
+    id: '/candidates/$id',
+    path: '/candidates/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedVacanciesIdPipelineRoute =
+  AuthenticatedVacanciesIdPipelineRouteImport.update({
+    id: '/pipeline',
+    path: '/pipeline',
+    getParentRoute: () => AuthenticatedVacanciesIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/clients': typeof AuthenticatedClientsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/vacancies/$id': typeof AuthenticatedVacanciesIdRoute
+  '/candidates/$id': typeof AuthenticatedCandidatesIdRoute
+  '/candidates/new': typeof AuthenticatedCandidatesNewRoute
+  '/vacancies/$id': typeof AuthenticatedVacanciesIdRouteWithChildren
   '/vacancies/new': typeof AuthenticatedVacanciesNewRoute
+  '/candidates/': typeof AuthenticatedCandidatesIndexRoute
   '/vacancies/': typeof AuthenticatedVacanciesIndexRoute
+  '/vacancies/$id/pipeline': typeof AuthenticatedVacanciesIdPipelineRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/clients': typeof AuthenticatedClientsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/vacancies/$id': typeof AuthenticatedVacanciesIdRoute
+  '/candidates/$id': typeof AuthenticatedCandidatesIdRoute
+  '/candidates/new': typeof AuthenticatedCandidatesNewRoute
+  '/vacancies/$id': typeof AuthenticatedVacanciesIdRouteWithChildren
   '/vacancies/new': typeof AuthenticatedVacanciesNewRoute
+  '/candidates': typeof AuthenticatedCandidatesIndexRoute
   '/vacancies': typeof AuthenticatedVacanciesIndexRoute
+  '/vacancies/$id/pipeline': typeof AuthenticatedVacanciesIdPipelineRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -86,9 +122,13 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/clients': typeof AuthenticatedClientsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/vacancies/$id': typeof AuthenticatedVacanciesIdRoute
+  '/_authenticated/candidates/$id': typeof AuthenticatedCandidatesIdRoute
+  '/_authenticated/candidates/new': typeof AuthenticatedCandidatesNewRoute
+  '/_authenticated/vacancies/$id': typeof AuthenticatedVacanciesIdRouteWithChildren
   '/_authenticated/vacancies/new': typeof AuthenticatedVacanciesNewRoute
+  '/_authenticated/candidates/': typeof AuthenticatedCandidatesIndexRoute
   '/_authenticated/vacancies/': typeof AuthenticatedVacanciesIndexRoute
+  '/_authenticated/vacancies/$id/pipeline': typeof AuthenticatedVacanciesIdPipelineRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -97,18 +137,26 @@ export interface FileRouteTypes {
     | '/auth'
     | '/clients'
     | '/dashboard'
+    | '/candidates/$id'
+    | '/candidates/new'
     | '/vacancies/$id'
     | '/vacancies/new'
+    | '/candidates/'
     | '/vacancies/'
+    | '/vacancies/$id/pipeline'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/clients'
     | '/dashboard'
+    | '/candidates/$id'
+    | '/candidates/new'
     | '/vacancies/$id'
     | '/vacancies/new'
+    | '/candidates'
     | '/vacancies'
+    | '/vacancies/$id/pipeline'
   id:
     | '__root__'
     | '/'
@@ -116,9 +164,13 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/clients'
     | '/_authenticated/dashboard'
+    | '/_authenticated/candidates/$id'
+    | '/_authenticated/candidates/new'
     | '/_authenticated/vacancies/$id'
     | '/_authenticated/vacancies/new'
+    | '/_authenticated/candidates/'
     | '/_authenticated/vacancies/'
+    | '/_authenticated/vacancies/$id/pipeline'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +223,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVacanciesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/candidates/': {
+      id: '/_authenticated/candidates/'
+      path: '/candidates'
+      fullPath: '/candidates/'
+      preLoaderRoute: typeof AuthenticatedCandidatesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/vacancies/new': {
       id: '/_authenticated/vacancies/new'
       path: '/vacancies/new'
@@ -185,22 +244,64 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVacanciesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/candidates/new': {
+      id: '/_authenticated/candidates/new'
+      path: '/candidates/new'
+      fullPath: '/candidates/new'
+      preLoaderRoute: typeof AuthenticatedCandidatesNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/candidates/$id': {
+      id: '/_authenticated/candidates/$id'
+      path: '/candidates/$id'
+      fullPath: '/candidates/$id'
+      preLoaderRoute: typeof AuthenticatedCandidatesIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/vacancies/$id/pipeline': {
+      id: '/_authenticated/vacancies/$id/pipeline'
+      path: '/pipeline'
+      fullPath: '/vacancies/$id/pipeline'
+      preLoaderRoute: typeof AuthenticatedVacanciesIdPipelineRouteImport
+      parentRoute: typeof AuthenticatedVacanciesIdRoute
+    }
   }
 }
+
+interface AuthenticatedVacanciesIdRouteChildren {
+  AuthenticatedVacanciesIdPipelineRoute: typeof AuthenticatedVacanciesIdPipelineRoute
+}
+
+const AuthenticatedVacanciesIdRouteChildren: AuthenticatedVacanciesIdRouteChildren =
+  {
+    AuthenticatedVacanciesIdPipelineRoute:
+      AuthenticatedVacanciesIdPipelineRoute,
+  }
+
+const AuthenticatedVacanciesIdRouteWithChildren =
+  AuthenticatedVacanciesIdRoute._addFileChildren(
+    AuthenticatedVacanciesIdRouteChildren,
+  )
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedVacanciesIdRoute: typeof AuthenticatedVacanciesIdRoute
+  AuthenticatedCandidatesIdRoute: typeof AuthenticatedCandidatesIdRoute
+  AuthenticatedCandidatesNewRoute: typeof AuthenticatedCandidatesNewRoute
+  AuthenticatedVacanciesIdRoute: typeof AuthenticatedVacanciesIdRouteWithChildren
   AuthenticatedVacanciesNewRoute: typeof AuthenticatedVacanciesNewRoute
+  AuthenticatedCandidatesIndexRoute: typeof AuthenticatedCandidatesIndexRoute
   AuthenticatedVacanciesIndexRoute: typeof AuthenticatedVacanciesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClientsRoute: AuthenticatedClientsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedVacanciesIdRoute: AuthenticatedVacanciesIdRoute,
+  AuthenticatedCandidatesIdRoute: AuthenticatedCandidatesIdRoute,
+  AuthenticatedCandidatesNewRoute: AuthenticatedCandidatesNewRoute,
+  AuthenticatedVacanciesIdRoute: AuthenticatedVacanciesIdRouteWithChildren,
   AuthenticatedVacanciesNewRoute: AuthenticatedVacanciesNewRoute,
+  AuthenticatedCandidatesIndexRoute: AuthenticatedCandidatesIndexRoute,
   AuthenticatedVacanciesIndexRoute: AuthenticatedVacanciesIndexRoute,
 }
 
