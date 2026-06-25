@@ -8,8 +8,8 @@ import type { ReactNode } from "react";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/vacancies", label: "Vacancies", icon: Briefcase },
+  { to: "/candidates", label: "Candidates", icon: Users },
   { to: "/clients", label: "Clients", icon: Building2 },
-  { to: "/candidates", label: "Candidates", icon: Users, soon: true },
   { to: "/reports", label: "Reports", icon: BarChart3, soon: true },
 ] as const;
 

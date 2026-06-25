@@ -44,6 +44,129 @@ export type Database = {
         }
         Relationships: []
       }
+      candidate_applications: {
+        Row: {
+          assigned_recruiter: string | null
+          candidate_id: string
+          created_at: string
+          created_by: string | null
+          hiring_manager_feedback: string | null
+          id: string
+          rejection_reason: string | null
+          score: number | null
+          stage: Database["public"]["Enums"]["pipeline_stage"]
+          updated_at: string
+          vacancy_id: string
+        }
+        Insert: {
+          assigned_recruiter?: string | null
+          candidate_id: string
+          created_at?: string
+          created_by?: string | null
+          hiring_manager_feedback?: string | null
+          id?: string
+          rejection_reason?: string | null
+          score?: number | null
+          stage?: Database["public"]["Enums"]["pipeline_stage"]
+          updated_at?: string
+          vacancy_id: string
+        }
+        Update: {
+          assigned_recruiter?: string | null
+          candidate_id?: string
+          created_at?: string
+          created_by?: string | null
+          hiring_manager_feedback?: string | null
+          id?: string
+          rejection_reason?: string | null
+          score?: number | null
+          stage?: Database["public"]["Enums"]["pipeline_stage"]
+          updated_at?: string
+          vacancy_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_applications_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_applications_vacancy_id_fkey"
+            columns: ["vacancy_id"]
+            isOneToOne: false
+            referencedRelation: "vacancies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_company: string | null
+          current_ctc: number | null
+          current_title: string | null
+          email: string | null
+          expected_ctc: number | null
+          full_name: string
+          id: string
+          linkedin_url: string | null
+          location: string | null
+          notes: string | null
+          notice_period_days: number | null
+          phone: string | null
+          resume_url: string | null
+          skills: string[] | null
+          source: string | null
+          total_experience: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_company?: string | null
+          current_ctc?: number | null
+          current_title?: string | null
+          email?: string | null
+          expected_ctc?: number | null
+          full_name: string
+          id?: string
+          linkedin_url?: string | null
+          location?: string | null
+          notes?: string | null
+          notice_period_days?: number | null
+          phone?: string | null
+          resume_url?: string | null
+          skills?: string[] | null
+          source?: string | null
+          total_experience?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_company?: string | null
+          current_ctc?: number | null
+          current_title?: string | null
+          email?: string | null
+          expected_ctc?: number | null
+          full_name?: string
+          id?: string
+          linkedin_url?: string | null
+          location?: string | null
+          notes?: string | null
+          notice_period_days?: number | null
+          phone?: string | null
+          resume_url?: string | null
+          skills?: string[] | null
+          source?: string | null
+          total_experience?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           contact_email: string | null
@@ -230,6 +353,44 @@ export type Database = {
           },
         ]
       }
+      stage_history: {
+        Row: {
+          application_id: string
+          changed_by: string | null
+          created_at: string
+          from_stage: Database["public"]["Enums"]["pipeline_stage"] | null
+          id: string
+          note: string | null
+          to_stage: Database["public"]["Enums"]["pipeline_stage"]
+        }
+        Insert: {
+          application_id: string
+          changed_by?: string | null
+          created_at?: string
+          from_stage?: Database["public"]["Enums"]["pipeline_stage"] | null
+          id?: string
+          note?: string | null
+          to_stage: Database["public"]["Enums"]["pipeline_stage"]
+        }
+        Update: {
+          application_id?: string
+          changed_by?: string | null
+          created_at?: string
+          from_stage?: Database["public"]["Enums"]["pipeline_stage"] | null
+          id?: string
+          note?: string | null
+          to_stage?: Database["public"]["Enums"]["pipeline_stage"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stage_history_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "candidate_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -341,6 +502,15 @@ export type Database = {
         | "recruitment_manager"
         | "recruiter"
         | "hiring_manager"
+      pipeline_stage:
+        | "sourcing"
+        | "screening"
+        | "submitted"
+        | "interviewing"
+        | "offered"
+        | "joined"
+        | "rejected"
+        | "on_hold"
       vacancy_level: "L1" | "L2" | "L3" | "L4"
       vacancy_status:
         | "open"
@@ -481,6 +651,16 @@ export const Constants = {
         "recruitment_manager",
         "recruiter",
         "hiring_manager",
+      ],
+      pipeline_stage: [
+        "sourcing",
+        "screening",
+        "submitted",
+        "interviewing",
+        "offered",
+        "joined",
+        "rejected",
+        "on_hold",
       ],
       vacancy_level: ["L1", "L2", "L3", "L4"],
       vacancy_status: ["open", "in_progress", "on_hold", "closed", "cancelled"],
