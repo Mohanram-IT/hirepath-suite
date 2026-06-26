@@ -1,16 +1,22 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle } from "lucide-react";
+import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle, Search, ClipboardList, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import type { ReactNode } from "react";
 
-const nav = [
+const staffNav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/vacancies", label: "Vacancies", icon: Briefcase },
   { to: "/candidates", label: "Candidates", icon: Users },
+  { to: "/interviews", label: "Interviews", icon: Video },
   { to: "/clients", label: "Clients", icon: Building2 },
   { to: "/reports", label: "Reports", icon: BarChart3, soon: true },
+] as const;
+
+const candidateNav = [
+  { to: "/portal", label: "My applications", icon: ClipboardList },
+  { to: "/jobs", label: "Browse jobs", icon: Search },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -18,6 +24,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user } = useAuth();
   const { roles } = useRoles(user?.id);
+  const isCandidate = roles.includes("candidate") && !roles.some((r) => r !== "candidate");
+  const nav = isCandidate ? candidateNav : staffNav;
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -28,13 +36,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen bg-background">
       <aside className="w-60 shrink-0 bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border">
         <div className="px-5 py-5 border-b border-sidebar-border">
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <div className="size-8 rounded-md bg-accent text-accent-foreground grid place-items-center font-bold">T</div>
             <div>
               <div className="font-semibold tracking-tight">TalentFlow</div>
-              <div className="text-[10px] uppercase tracking-wider opacity-60">Recruitment OS</div>
+              <div className="text-[10px] uppercase tracking-wider opacity-60">{isCandidate ? "Candidate portal" : "Recruitment OS"}</div>
             </div>
-          </div>
+          </Link>
         </div>
         <nav className="flex-1 px-2 py-3 space-y-0.5">
           {nav.map((n) => {
@@ -45,16 +53,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={n.to}
                 to={n.to}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition ${
-                  active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "hover:bg-sidebar-accent/60 text-sidebar-foreground/80"
+                  active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60 text-sidebar-foreground/80"
                 }`}
               >
                 <Icon className="size-4" />
                 <span>{n.label}</span>
-                {"soon" in n && n.soon && (
-                  <span className="ml-auto text-[9px] uppercase tracking-wider opacity-50">soon</span>
-                )}
+                {"soon" in n && n.soon && <span className="ml-auto text-[9px] uppercase tracking-wider opacity-50">soon</span>}
               </Link>
             );
           })}

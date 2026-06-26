@@ -6,11 +6,15 @@ import { useAuth } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { stageTone, stageLabel } from "@/lib/pipeline";
+import { queueNotification } from "@/lib/notify";
 import { toast } from "sonner";
-import { ArrowLeft, FileText, Mail, Phone, MapPin, Briefcase, Plus } from "lucide-react";
+import { ArrowLeft, FileText, Mail, Phone, MapPin, Briefcase, Plus, Calendar, Video, XCircle } from "lucide-react";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/candidates/$id")({
@@ -45,14 +49,23 @@ function CandidateDetail() {
     },
   });
 
-  const [resumeUrl, setResumeUrl] = useState<string | null>(null);
+  const { data: interviews = [] } = useQuery({
+    queryKey: ["candidate-interviews", id, applications.map((a) => a.id).join(",")],
+    enabled: applications.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("interviews")
+        .select("*")
+        .in("application_id", applications.map((a) => a.id))
+        .order("scheduled_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
   async function openResume() {
     if (!candidate?.resume_url) return;
     const { data } = await supabase.storage.from("resumes").createSignedUrl(candidate.resume_url, 60 * 5);
-    if (data?.signedUrl) {
-      setResumeUrl(data.signedUrl);
-      window.open(data.signedUrl, "_blank");
-    }
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   }
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading…</div>;
@@ -115,17 +128,54 @@ function CandidateDetail() {
             <CardContent>
               {applications.length === 0 && <div className="text-sm text-muted-foreground">Not shortlisted for any vacancy yet.</div>}
               <div className="space-y-2">
-                {applications.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between border rounded-md p-3">
-                    <div>
-                      <Link to="/vacancies/$id" params={{ id: a.vacancy_id }} className="font-medium hover:underline">
-                        {a.vacancies?.role}
-                      </Link>
-                      <div className="text-xs text-muted-foreground">{a.vacancies?.clients?.name ?? "—"} · added {format(new Date(a.created_at), "PP")}</div>
+                {applications.map((a) => {
+                  const appInterviews = interviews.filter((i) => i.application_id === a.id);
+                  return (
+                    <div key={a.id} className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <Link to="/vacancies/$id" params={{ id: a.vacancy_id }} className="font-medium hover:underline">{a.vacancies?.role}</Link>
+                          <div className="text-xs text-muted-foreground">{a.vacancies?.clients?.name ?? "—"} · added {format(new Date(a.created_at), "PP")}</div>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-md border ${stageTone(a.stage)}`}>{stageLabel(a.stage)}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <ScheduleInterviewDialog
+                          applicationId={a.id}
+                          candidateEmail={candidate.email ?? ""}
+                          candidateUserId={candidate.user_id}
+                          vacancyRole={a.vacancies?.role ?? ""}
+                          userId={user?.id}
+                          onDone={() => { qc.invalidateQueries({ queryKey: ["candidate-interviews", id] }); qc.invalidateQueries({ queryKey: ["candidate-applications", id] }); }}
+                        />
+                        <RejectDialog
+                          applicationId={a.id}
+                          candidateEmail={candidate.email ?? ""}
+                          candidateUserId={candidate.user_id}
+                          vacancyRole={a.vacancies?.role ?? ""}
+                          onDone={() => qc.invalidateQueries({ queryKey: ["candidate-applications", id] })}
+                        />
+                      </div>
+                      {appInterviews.length > 0 && (
+                        <div className="border-t pt-2 mt-2 space-y-1">
+                          {appInterviews.map((iv) => (
+                            <div key={iv.id} className="text-xs flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-1.5">
+                                <Calendar className="size-3" />
+                                {format(new Date(iv.scheduled_at), "PPp")} · {iv.round_name ?? "Interview"} · {iv.status}
+                              </span>
+                              {iv.status === "scheduled" && (
+                                <Link to="/meet/$roomId" params={{ roomId: iv.room_id }} className="text-accent hover:underline flex items-center gap-1">
+                                  <Video className="size-3" /> Join
+                                </Link>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-md border ${stageTone(a.stage)}`}>{stageLabel(a.stage)}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -142,16 +192,14 @@ function Row({ label, value }: { label: string; value: string }) {
 function ApplyDialog({ candidateId, userId, onDone }: { candidateId: string; userId: string | undefined; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [vacancyId, setVacancyId] = useState("");
-
   const { data: vacancies = [] } = useQuery({
     queryKey: ["vacancies-open-list"],
+    enabled: open,
     queryFn: async () => {
       const { data } = await supabase.from("vacancies").select("id, role, clients(name)").in("status", ["open", "in_progress"]).order("created_at", { ascending: false });
       return data ?? [];
     },
-    enabled: open,
   });
-
   const submit = useMutation({
     mutationFn: async () => {
       if (!userId || !vacancyId) throw new Error("Pick a vacancy");
@@ -163,7 +211,6 @@ function ApplyDialog({ candidateId, userId, onDone }: { candidateId: string; use
     onSuccess: () => { toast.success("Shortlisted"); setOpen(false); setVacancyId(""); onDone(); },
     onError: (e: Error) => toast.error(e.message),
   });
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button size="sm"><Plus className="size-4" /> Shortlist for vacancy</Button></DialogTrigger>
@@ -178,6 +225,97 @@ function ApplyDialog({ candidateId, userId, onDone }: { candidateId: string; use
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
           <Button onClick={() => submit.mutate()} disabled={!vacancyId || submit.isPending}>Shortlist</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ScheduleInterviewDialog({ applicationId, candidateEmail, candidateUserId, vacancyRole, userId, onDone }: {
+  applicationId: string; candidateEmail: string; candidateUserId: string | null; vacancyRole: string; userId: string | undefined; onDone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [duration, setDuration] = useState(45);
+  const [round, setRound] = useState("Technical round 1");
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      if (!userId || !scheduledAt) throw new Error("Pick a time");
+      const { data, error } = await supabase.from("interviews").insert({
+        application_id: applicationId,
+        scheduled_at: new Date(scheduledAt).toISOString(),
+        duration_minutes: duration,
+        round_name: round,
+        interviewer_ids: [userId],
+        created_by: userId,
+        mode: "in_app",
+      }).select("room_id").single();
+      if (error) throw error;
+      await supabase.from("candidate_applications").update({ stage: "interviewing" }).eq("id", applicationId);
+      if (candidateEmail) {
+        await queueNotification({
+          template: "interview_scheduled",
+          recipientEmail: candidateEmail,
+          recipientUserId: candidateUserId,
+          payload: { vacancyRole, scheduledAt, duration, round, roomUrl: `${window.location.origin}/meet/${data.room_id}` },
+        });
+      }
+    },
+    onSuccess: () => { toast.success("Interview scheduled — candidate notified"); setOpen(false); onDone(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button size="sm" variant="outline"><Calendar className="size-4" /> Schedule interview</Button></DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Schedule interview · {vacancyRole}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Round</Label><Input value={round} onChange={(e) => setRound(e.target.value)} /></div>
+          <div><Label>Date & time</Label><Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} /></div>
+          <div><Label>Duration (minutes)</Label><Input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} /></div>
+          <p className="text-xs text-muted-foreground">A built-in video room will be created automatically. The candidate gets an email with the join link.</p>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={() => submit.mutate()} disabled={!scheduledAt || submit.isPending}>Schedule & notify</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RejectDialog({ applicationId, candidateEmail, candidateUserId, vacancyRole, onDone }: {
+  applicationId: string; candidateEmail: string; candidateUserId: string | null; vacancyRole: string; onDone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const submit = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("candidate_applications").update({ stage: "rejected", rejection_reason: reason || null }).eq("id", applicationId);
+      if (error) throw error;
+      if (candidateEmail) {
+        await queueNotification({
+          template: "application_rejected",
+          recipientEmail: candidateEmail,
+          recipientUserId: candidateUserId,
+          payload: { vacancyRole, reason },
+        });
+      }
+    },
+    onSuccess: () => { toast.success("Application rejected — candidate notified"); setOpen(false); onDone(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button size="sm" variant="ghost" className="text-rose-600 hover:text-rose-700"><XCircle className="size-4" /> Reject</Button></DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Reject application</DialogTitle></DialogHeader>
+        <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (shared in email to candidate, optional)" />
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button variant="destructive" onClick={() => submit.mutate()} disabled={submit.isPending}>Reject & notify</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
