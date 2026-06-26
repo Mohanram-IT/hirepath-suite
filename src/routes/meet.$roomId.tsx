@@ -204,7 +204,7 @@ function MeetRoom() {
 }
 
 function Tile({ label, videoRef, active, muted, placeholder }: {
-  label: string; videoRef: React.RefObject<HTMLVideoElement>; active: boolean; muted?: boolean; placeholder?: boolean;
+  label: string; videoRef: React.RefObject<HTMLVideoElement | null>; active: boolean; muted?: boolean; placeholder?: boolean;
 }) {
   return (
     <div className="relative rounded-xl overflow-hidden bg-zinc-900 border border-white/5 min-h-[40vh]">
