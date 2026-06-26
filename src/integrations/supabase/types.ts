@@ -122,6 +122,7 @@ export type Database = {
           source: string | null
           total_experience: number | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -143,6 +144,7 @@ export type Database = {
           source?: string | null
           total_experience?: number | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -164,6 +166,7 @@ export type Database = {
           source?: string | null
           total_experience?: number | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -275,6 +278,107 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      interviews: {
+        Row: {
+          application_id: string
+          cancellation_reason: string | null
+          created_at: string
+          created_by: string
+          duration_minutes: number
+          external_link: string | null
+          feedback: string | null
+          id: string
+          interviewer_ids: string[]
+          mode: string
+          rating: number | null
+          room_id: string
+          round_name: string | null
+          scheduled_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          application_id: string
+          cancellation_reason?: string | null
+          created_at?: string
+          created_by: string
+          duration_minutes?: number
+          external_link?: string | null
+          feedback?: string | null
+          id?: string
+          interviewer_ids?: string[]
+          mode?: string
+          rating?: number | null
+          room_id?: string
+          round_name?: string | null
+          scheduled_at: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          application_id?: string
+          cancellation_reason?: string | null
+          created_at?: string
+          created_by?: string
+          duration_minutes?: number
+          external_link?: string | null
+          feedback?: string | null
+          id?: string
+          interviewer_ids?: string[]
+          mode?: string
+          rating?: number | null
+          room_id?: string
+          round_name?: string | null
+          scheduled_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "candidate_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          payload: Json
+          recipient_email: string
+          recipient_user_id: string | null
+          sent_at: string | null
+          status: string
+          template: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          payload?: Json
+          recipient_email: string
+          recipient_user_id?: string | null
+          sent_at?: string | null
+          status?: string
+          template: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          payload?: Json
+          recipient_email?: string
+          recipient_user_id?: string | null
+          sent_at?: string | null
+          status?: string
+          template?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -502,6 +606,7 @@ export type Database = {
         | "recruitment_manager"
         | "recruiter"
         | "hiring_manager"
+        | "candidate"
       pipeline_stage:
         | "sourcing"
         | "screening"
@@ -651,6 +756,7 @@ export const Constants = {
         "recruitment_manager",
         "recruiter",
         "hiring_manager",
+        "candidate",
       ],
       pipeline_stage: [
         "sourcing",
