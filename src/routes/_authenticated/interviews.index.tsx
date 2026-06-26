@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Video, Calendar } from "lucide-react";
 import { format, isFuture, isPast } from "date-fns";
 
-export const Route = createFileRoute("/_authenticated/interviews")({
+export const Route = createFileRoute("/_authenticated/interviews/")({
   component: InterviewsList,
 });
 

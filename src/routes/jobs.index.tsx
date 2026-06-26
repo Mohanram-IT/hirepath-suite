@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Search, MapPin, Briefcase, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 
-export const Route = createFileRoute("/jobs")({
+export const Route = createFileRoute("/jobs/")({
   ssr: false,
   head: () => ({
     meta: [
