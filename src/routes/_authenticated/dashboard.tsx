@@ -105,3 +105,22 @@ function Kpi({ icon: Icon, label, value, tone }: { icon: React.ComponentType<{ c
     </Card>
   );
 }
+
+function DashboardActions() {
+  const send = useServerFn(sendMyHrDigest);
+  const m = useMutation({
+    mutationFn: () => send({ data: undefined as never }),
+    onSuccess: (r) => toast.success(r.sent > 0 ? `Digest sent to ${r.recipients.join(", ")}` : "No digest sent (no email on file)"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <div className="flex gap-2">
+      <Button variant="outline" onClick={() => m.mutate()} disabled={m.isPending}>
+        <Mail className="size-4" /> {m.isPending ? "Sending…" : "Email me today's digest"}
+      </Button>
+      <Button asChild>
+        <Link to="/vacancies/new"><Plus className="size-4" /> New vacancy</Link>
+      </Button>
+    </div>
+  );
+}
