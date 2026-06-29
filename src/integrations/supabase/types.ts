@@ -238,6 +238,42 @@ export type Database = {
           },
         ]
       }
+      email_send_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          provider_message_id: string | null
+          recipient_email: string
+          recipient_user_id: string | null
+          status: string
+          template: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider_message_id?: string | null
+          recipient_email: string
+          recipient_user_id?: string | null
+          status?: string
+          template: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider_message_id?: string | null
+          recipient_email?: string
+          recipient_user_id?: string | null
+          status?: string
+          template?: string
+        }
+        Relationships: []
+      }
       extensions: {
         Row: {
           approval_notes: string | null
