@@ -25,6 +25,7 @@ import { Route as AuthenticatedVacanciesNewRouteImport } from './routes/_authent
 import { Route as AuthenticatedVacanciesIdRouteImport } from './routes/_authenticated/vacancies.$id'
 import { Route as AuthenticatedCandidatesNewRouteImport } from './routes/_authenticated/candidates.new'
 import { Route as AuthenticatedCandidatesIdRouteImport } from './routes/_authenticated/candidates.$id'
+import { Route as ApiPublicHooksHrDailyDigestRouteImport } from './routes/api/public/hooks/hr-daily-digest'
 import { Route as AuthenticatedVacanciesIdPipelineRouteImport } from './routes/_authenticated/vacancies.$id.pipeline'
 
 const AuthRoute = AuthRouteImport.update({
@@ -113,6 +114,12 @@ const AuthenticatedCandidatesIdRoute =
     path: '/candidates/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicHooksHrDailyDigestRoute =
+  ApiPublicHooksHrDailyDigestRouteImport.update({
+    id: '/api/public/hooks/hr-daily-digest',
+    path: '/api/public/hooks/hr-daily-digest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedVacanciesIdPipelineRoute =
   AuthenticatedVacanciesIdPipelineRouteImport.update({
     id: '/pipeline',
@@ -137,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/interviews/': typeof AuthenticatedInterviewsIndexRoute
   '/vacancies/': typeof AuthenticatedVacanciesIndexRoute
   '/vacancies/$id/pipeline': typeof AuthenticatedVacanciesIdPipelineRoute
+  '/api/public/hooks/hr-daily-digest': typeof ApiPublicHooksHrDailyDigestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -155,6 +163,7 @@ export interface FileRoutesByTo {
   '/interviews': typeof AuthenticatedInterviewsIndexRoute
   '/vacancies': typeof AuthenticatedVacanciesIndexRoute
   '/vacancies/$id/pipeline': typeof AuthenticatedVacanciesIdPipelineRoute
+  '/api/public/hooks/hr-daily-digest': typeof ApiPublicHooksHrDailyDigestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -175,6 +184,7 @@ export interface FileRoutesById {
   '/_authenticated/interviews/': typeof AuthenticatedInterviewsIndexRoute
   '/_authenticated/vacancies/': typeof AuthenticatedVacanciesIndexRoute
   '/_authenticated/vacancies/$id/pipeline': typeof AuthenticatedVacanciesIdPipelineRoute
+  '/api/public/hooks/hr-daily-digest': typeof ApiPublicHooksHrDailyDigestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
     | '/interviews/'
     | '/vacancies/'
     | '/vacancies/$id/pipeline'
+    | '/api/public/hooks/hr-daily-digest'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -213,6 +224,7 @@ export interface FileRouteTypes {
     | '/interviews'
     | '/vacancies'
     | '/vacancies/$id/pipeline'
+    | '/api/public/hooks/hr-daily-digest'
   id:
     | '__root__'
     | '/'
@@ -232,6 +244,7 @@ export interface FileRouteTypes {
     | '/_authenticated/interviews/'
     | '/_authenticated/vacancies/'
     | '/_authenticated/vacancies/$id/pipeline'
+    | '/api/public/hooks/hr-daily-digest'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -241,6 +254,7 @@ export interface RootRouteChildren {
   JobsIdRoute: typeof JobsIdRoute
   MeetRoomIdRoute: typeof MeetRoomIdRoute
   JobsIndexRoute: typeof JobsIndexRoute
+  ApiPublicHooksHrDailyDigestRoute: typeof ApiPublicHooksHrDailyDigestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -357,6 +371,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCandidatesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/hooks/hr-daily-digest': {
+      id: '/api/public/hooks/hr-daily-digest'
+      path: '/api/public/hooks/hr-daily-digest'
+      fullPath: '/api/public/hooks/hr-daily-digest'
+      preLoaderRoute: typeof ApiPublicHooksHrDailyDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/vacancies/$id/pipeline': {
       id: '/_authenticated/vacancies/$id/pipeline'
       path: '/pipeline'
@@ -418,6 +439,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobsIdRoute: JobsIdRoute,
   MeetRoomIdRoute: MeetRoomIdRoute,
   JobsIndexRoute: JobsIndexRoute,
+  ApiPublicHooksHrDailyDigestRoute: ApiPublicHooksHrDailyDigestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
