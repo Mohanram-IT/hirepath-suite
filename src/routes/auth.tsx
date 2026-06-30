@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { toast } from "sonner";
 import { Briefcase, Users, Mail, KeyRound, ArrowLeft } from "lucide-react";
+import { requestEmailOtp, verifyEmailOtp } from "@/lib/otp.functions";
 
 const searchSchema = z.object({ as: z.enum(["candidate", "recruiter"]).default("recruiter") });
 
