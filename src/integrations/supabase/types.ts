@@ -44,6 +44,39 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_otps: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          metadata: Json
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          metadata?: Json
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          metadata?: Json
+        }
+        Relationships: []
+      }
       candidate_applications: {
         Row: {
           assigned_recruiter: string | null

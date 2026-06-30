@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { toast } from "sonner";
 import { Briefcase, Users, Mail, KeyRound, ArrowLeft } from "lucide-react";
+import { requestEmailOtp, verifyEmailOtp } from "@/lib/otp.functions";
 
 const searchSchema = z.object({ as: z.enum(["candidate", "recruiter"]).default("recruiter") });
 
@@ -35,36 +36,56 @@ function AuthPage() {
   async function sendOtp(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: window.location.origin,
-        data: isCandidate ? { signup_as: "candidate", full_name: fullName || undefined } : { full_name: fullName || undefined },
-      },
-    });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success(`Code sent to ${email}`);
-    setStep("otp");
+    try {
+      await requestEmailOtp({
+        data: {
+          email,
+          fullName: fullName || undefined,
+          signupAs: isCandidate ? "candidate" : "recruiter",
+        },
+      });
+      toast.success(`Code sent to ${email}`);
+      setStep("otp");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send code");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function verifyOtp() {
     if (otp.length !== 6) return;
     setBusy(true);
-    const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
-    setBusy(false);
-    if (error) { setOtp(""); return toast.error(error.message); }
-    toast.success("Signed in");
-    window.location.href = isCandidate ? "/portal" : "/dashboard";
+    try {
+      const { token_hash, type } = await verifyEmailOtp({ data: { email, code: otp } });
+      const { error } = await supabase.auth.verifyOtp({ token_hash, type });
+      if (error) throw error;
+      toast.success("Signed in");
+      window.location.href = isCandidate ? "/portal" : "/dashboard";
+    } catch (err) {
+      setOtp("");
+      toast.error(err instanceof Error ? err.message : "Could not verify code");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function resend() {
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: isCandidate ? { signup_as: "candidate" } : {} } });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("New code sent");
+    try {
+      await requestEmailOtp({
+        data: {
+          email,
+          fullName: fullName || undefined,
+          signupAs: isCandidate ? "candidate" : "recruiter",
+        },
+      });
+      toast.success("New code sent");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not resend code");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

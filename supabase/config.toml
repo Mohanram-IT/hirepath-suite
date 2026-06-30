@@ -1,17 +1,1 @@
 project_id = "ohewfmqttmjclgupdraw"
-
-[auth.email.template.confirmation]
-subject = "Your TalentFlow code: {{ .Token }}"
-content_path = "./supabase/templates/otp.html"
-
-[auth.email.template.magic_link]
-subject = "Your TalentFlow code: {{ .Token }}"
-content_path = "./supabase/templates/otp.html"
-
-[auth.email.template.recovery]
-subject = "Your TalentFlow code: {{ .Token }}"
-content_path = "./supabase/templates/otp.html"
-
-[auth.email.template.email_change]
-subject = "Your TalentFlow code: {{ .Token }}"
-content_path = "./supabase/templates/otp.html"
