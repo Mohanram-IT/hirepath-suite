@@ -29,6 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { roles } = useRoles(user?.id);
   const isCandidate = roles.includes("candidate") && !roles.some((r) => r !== "candidate");
+  const isAdmin = roles.includes("hr_admin");
   const nav = isCandidate ? candidateNav : staffNav;
 
   async function signOut() {
