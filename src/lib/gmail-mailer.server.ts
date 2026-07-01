@@ -1,21 +1,4 @@
-import nodemailer from "nodemailer";
-
-let transporter: nodemailer.Transporter | null = null;
-
-function getTransporter() {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) throw new Error("GMAIL_USER / GMAIL_APP_PASSWORD not configured");
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: { user, pass },
-    });
-  }
-  return transporter;
-}
+import { WorkerMailer } from "worker-mailer";
 
 export async function sendGmail(opts: {
   to: string;
@@ -24,14 +7,28 @@ export async function sendGmail(opts: {
   text?: string;
   fromName?: string;
 }): Promise<{ messageId: string }> {
-  const user = process.env.GMAIL_USER!;
-  const t = getTransporter();
-  const info = await t.sendMail({
-    from: `"${opts.fromName ?? "TalentFlow"}" <${user}>`,
-    to: opts.to,
-    subject: opts.subject,
-    html: opts.html,
-    text: opts.text,
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) throw new Error("GMAIL_USER / GMAIL_APP_PASSWORD not configured");
+
+  const mailer = await WorkerMailer.connect({
+    credentials: { username: user, password: pass },
+    authType: "plain",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
   });
-  return { messageId: info.messageId };
+
+  try {
+    await mailer.send({
+      from: { name: opts.fromName ?? "TalentFlow", email: user },
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    });
+    return { messageId: `<${Date.now()}.${Math.random().toString(36).slice(2)}@gmail>` };
+  } finally {
+    try { await mailer.close(); } catch { /* noop */ }
+  }
 }
