@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle, Search, ClipboardList, Video } from "lucide-react";
+import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle, Search, ClipboardList, Video, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,10 @@ const staffNav = [
   { to: "/interviews", label: "Interviews", icon: Video },
   { to: "/clients", label: "Clients", icon: Building2 },
   { to: "/reports", label: "Reports", icon: BarChart3, soon: true },
+] as const;
+
+const adminNav = [
+  { to: "/admin/users", label: "Staff accounts", icon: Shield },
 ] as const;
 
 const candidateNav = [
