@@ -25,6 +25,7 @@ import { Route as AuthenticatedVacanciesNewRouteImport } from './routes/_authent
 import { Route as AuthenticatedVacanciesIdRouteImport } from './routes/_authenticated/vacancies.$id'
 import { Route as AuthenticatedCandidatesNewRouteImport } from './routes/_authenticated/candidates.new'
 import { Route as AuthenticatedCandidatesIdRouteImport } from './routes/_authenticated/candidates.$id'
+import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as ApiPublicHooksHrDailyDigestRouteImport } from './routes/api/public/hooks/hr-daily-digest'
 import { Route as AuthenticatedVacanciesIdPipelineRouteImport } from './routes/_authenticated/vacancies.$id.pipeline'
 
@@ -114,6 +115,11 @@ const AuthenticatedCandidatesIdRoute =
     path: '/candidates/$id',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const ApiPublicHooksHrDailyDigestRoute =
   ApiPublicHooksHrDailyDigestRouteImport.update({
     id: '/api/public/hooks/hr-daily-digest',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/jobs/$id': typeof JobsIdRoute
   '/meet/$roomId': typeof MeetRoomIdRoute
   '/jobs/': typeof JobsIndexRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/candidates/$id': typeof AuthenticatedCandidatesIdRoute
   '/candidates/new': typeof AuthenticatedCandidatesNewRoute
   '/vacancies/$id': typeof AuthenticatedVacanciesIdRouteWithChildren
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/jobs/$id': typeof JobsIdRoute
   '/meet/$roomId': typeof MeetRoomIdRoute
   '/jobs': typeof JobsIndexRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/candidates/$id': typeof AuthenticatedCandidatesIdRoute
   '/candidates/new': typeof AuthenticatedCandidatesNewRoute
   '/vacancies/$id': typeof AuthenticatedVacanciesIdRouteWithChildren
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/jobs/$id': typeof JobsIdRoute
   '/meet/$roomId': typeof MeetRoomIdRoute
   '/jobs/': typeof JobsIndexRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/candidates/$id': typeof AuthenticatedCandidatesIdRoute
   '/_authenticated/candidates/new': typeof AuthenticatedCandidatesNewRoute
   '/_authenticated/vacancies/$id': typeof AuthenticatedVacanciesIdRouteWithChildren
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/jobs/$id'
     | '/meet/$roomId'
     | '/jobs/'
+    | '/admin/users'
     | '/candidates/$id'
     | '/candidates/new'
     | '/vacancies/$id'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/jobs/$id'
     | '/meet/$roomId'
     | '/jobs'
+    | '/admin/users'
     | '/candidates/$id'
     | '/candidates/new'
     | '/vacancies/$id'
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | '/jobs/$id'
     | '/meet/$roomId'
     | '/jobs/'
+    | '/_authenticated/admin/users'
     | '/_authenticated/candidates/$id'
     | '/_authenticated/candidates/new'
     | '/_authenticated/vacancies/$id'
@@ -371,6 +383,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCandidatesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/users': {
+      id: '/_authenticated/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/hooks/hr-daily-digest': {
       id: '/api/public/hooks/hr-daily-digest'
       path: '/api/public/hooks/hr-daily-digest'
@@ -407,6 +426,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedPortalRoute: typeof AuthenticatedPortalRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedCandidatesIdRoute: typeof AuthenticatedCandidatesIdRoute
   AuthenticatedCandidatesNewRoute: typeof AuthenticatedCandidatesNewRoute
   AuthenticatedVacanciesIdRoute: typeof AuthenticatedVacanciesIdRouteWithChildren
@@ -420,6 +440,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClientsRoute: AuthenticatedClientsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedPortalRoute: AuthenticatedPortalRoute,
+  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedCandidatesIdRoute: AuthenticatedCandidatesIdRoute,
   AuthenticatedCandidatesNewRoute: AuthenticatedCandidatesNewRoute,
   AuthenticatedVacanciesIdRoute: AuthenticatedVacanciesIdRouteWithChildren,

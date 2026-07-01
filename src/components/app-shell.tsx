@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle, Search, ClipboardList, Video } from "lucide-react";
+import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle, Search, ClipboardList, Video, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,10 @@ const staffNav = [
   { to: "/reports", label: "Reports", icon: BarChart3, soon: true },
 ] as const;
 
+const adminNav = [
+  { to: "/admin/users", label: "Staff accounts", icon: Shield },
+] as const;
+
 const candidateNav = [
   { to: "/portal", label: "My applications", icon: ClipboardList },
   { to: "/jobs", label: "Browse jobs", icon: Search },
@@ -25,6 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { roles } = useRoles(user?.id);
   const isCandidate = roles.includes("candidate") && !roles.some((r) => r !== "candidate");
+  const isAdmin = roles.includes("hr_admin");
   const nav = isCandidate ? candidateNav : staffNav;
 
   async function signOut() {
@@ -45,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
         <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {nav.map((n) => {
+          {[...nav, ...(isAdmin && !isCandidate ? adminNav : [])].map((n) => {
             const active = pathname.startsWith(n.to);
             const Icon = n.icon;
             return (

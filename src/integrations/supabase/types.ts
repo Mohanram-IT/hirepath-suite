@@ -54,6 +54,7 @@ export type Database = {
           expires_at: string
           id: string
           metadata: Json
+          purpose: string
         }
         Insert: {
           attempts?: number
@@ -64,6 +65,7 @@ export type Database = {
           expires_at: string
           id?: string
           metadata?: Json
+          purpose?: string
         }
         Update: {
           attempts?: number
@@ -74,6 +76,7 @@ export type Database = {
           expires_at?: string
           id?: string
           metadata?: Json
+          purpose?: string
         }
         Relationships: []
       }
@@ -456,6 +459,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          last_login_at: string | null
           updated_at: string
         }
         Insert: {
@@ -464,6 +468,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          last_login_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -472,6 +477,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          last_login_at?: string | null
           updated_at?: string
         }
         Relationships: []
