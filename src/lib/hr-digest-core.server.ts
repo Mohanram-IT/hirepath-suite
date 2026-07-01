@@ -138,31 +138,17 @@ export async function runHrDigest(opts?: { onlyUserId?: string }): Promise<Diges
     }).select("id").single();
 
     try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
-        body: JSON.stringify({
-          from: "TalentFlow <onboarding@resend.dev>",
-          to: [p.email],
-          subject,
-          html,
-        }),
+      const { messageId } = await sendGmail({
+        to: p.email,
+        subject,
+        html,
       });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        failed++;
-        await sb.from("email_send_log").update({
-          status: "failed",
-          error_message: (body as { message?: string })?.message ?? `HTTP ${res.status}`,
-        }).eq("id", log?.id ?? "");
-      } else {
-        sent++;
-        recipients.push(p.email);
-        await sb.from("email_send_log").update({
-          status: "sent",
-          provider_message_id: (body as { id?: string })?.id ?? null,
-        }).eq("id", log?.id ?? "");
-      }
+      sent++;
+      recipients.push(p.email);
+      await sb.from("email_send_log").update({
+        status: "sent",
+        provider_message_id: messageId ?? null,
+      }).eq("id", log?.id ?? "");
     } catch (e) {
       failed++;
       await sb.from("email_send_log").update({
