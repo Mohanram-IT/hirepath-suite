@@ -33,9 +33,6 @@ export async function requestOtp(input: {
   const email = input.email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email");
 
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) throw new Error("Email service not configured");
-
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const code_hash = hashCode(email, code);
   const expires_at = new Date(Date.now() + OTP_TTL_MIN * 60_000).toISOString();
@@ -48,21 +45,13 @@ export async function requestOtp(input: {
   });
   if (error) throw new Error(error.message);
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
-    body: JSON.stringify({
-      from: "TalentFlow <onboarding@resend.dev>",
-      to: [email],
-      subject: `Your TalentFlow code: ${code}`,
-      html: renderEmail(code),
-      text: `Your TalentFlow code is ${code}. It expires in ${OTP_TTL_MIN} minutes.`,
-    }),
+  const { sendGmail } = await import("./gmail-mailer.server");
+  await sendGmail({
+    to: email,
+    subject: `Your TalentFlow code: ${code}`,
+    html: renderEmail(code),
+    text: `Your TalentFlow code is ${code}. It expires in ${OTP_TTL_MIN} minutes.`,
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { message?: string })?.message ?? `Email send failed (${res.status})`);
-  }
   return { ok: true };
 }
 
