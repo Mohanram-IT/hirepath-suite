@@ -79,8 +79,10 @@ export type DigestResult = { sent: number; skipped: number; failed: number; reci
 
 export async function runHrDigest(opts?: { onlyUserId?: string }): Promise<DigestResult> {
   const sb = admin();
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) throw new Error("RESEND_API_KEY not configured");
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    throw new Error("GMAIL_USER / GMAIL_APP_PASSWORD not configured");
+  }
+  const { sendGmail } = await import("./gmail-mailer.server");
   const appUrl = process.env.APP_URL ?? "https://project--7eb5077e-3247-4531-af55-f2c81a8a857e.lovable.app";
 
   // Recipients: hr_admin + recruiter
