@@ -1,54 +1,63 @@
-## TalentFlow — Recruitment & Vacancy Management Portal
+## Goals
 
-This is a large enterprise system. Building it well requires phasing — trying to ship everything in one pass produces a shallow, broken app. Below is a realistic phased plan. I'll confirm scope for **Phase 1** before building, then move through subsequent phases on your approval.
+1. Fix email delivery (recruiter login + candidate) — replace `worker-mailer` (which requires `cloudflare:sockets`, missing on our Node runtime) with `nodemailer`, loaded via `createRequire` to avoid the earlier bundling error.
+2. Reduce spam-folder placement with proper headers.
+3. Switch auth to password-first with OTP only when the session has expired or the account is new.
+4. Add a super-admin form to create recruiter/HR accounts with an admin-chosen password, emailed to the user.
 
-### Tech stack (adjusted to this environment)
-You requested Next.js + Supabase. This Lovable project runs on **TanStack Start (React 19 + Vite)** with **Lovable Cloud** (Supabase under the hood — same Postgres, Auth, Storage, RLS). All requested capabilities are achievable; only the framework name changes. If that's a blocker, tell me now.
+## Email fix
 
----
+- Remove `worker-mailer`, reinstall `nodemailer` + `@types/nodemailer`.
+- Rewrite `src/lib/gmail-mailer.server.ts` to load nodemailer with `createRequire(import.meta.url)('nodemailer')` inside the handler. This sidesteps Vite's ESM wrapper that produced `Class extends [object Module]`.
+- Use `smtp.gmail.com:465`, `secure: true`, `GMAIL_USER` / `GMAIL_APP_PASSWORD`.
+- Set `From: "TalentFlow" <GMAIL_USER>`, add `Reply-To`, `List-Unsubscribe`, and a plain-text alternative — these three are the biggest levers against Gmail marking mail as spam.
+- Return the real `messageId` from nodemailer for `email_send_log`.
 
-### Phase 1 — Foundation + Vacancy & Replacement Core (this build)
-The backbone everything else depends on.
+Note: `m.mohanram@tvs-e.in` non-delivery is out of our control (their mail server / corporate spam gateway rejected or quarantined it). We'll surface the SMTP error into `email_send_log.error_message` so you can see exactly why. Users can whitelist your Gmail sender in their corporate mail rules.
 
-- **Design system**: enterprise ATS look (dense data UI, semantic tokens in `src/styles.css`, no purple-gradient defaults). Sidebar shell + topbar.
-- **Auth & RBAC**: Lovable Cloud email/password + Google login. `user_roles` table with enum (`hr_admin`, `recruitment_manager`, `recruiter`, `hiring_manager`), `has_role()` security-definer fn, route guards via `_authenticated` layout.
-- **Database** (with RLS + grants): `clients`, `vacancies`, `replacement_employees`, `extensions`, `comments`, `audit_logs`, `user_roles`, `profiles`.
-- **Vacancy module**: create / edit / list / detail. All fields from spec (client, role, level L1–L4, location, experience, skills, openings, RM, HM, type, status).
-- **Replacement hiring logic**: replacement employee form, auto-calc Deployment Deadline = (Early Relieving OR Last Working Date) + 1 day, Target Hiring Date, Days Left with green/orange/red/critical color states.
-- **Target date extension**: HR Admin can extend with reason + approval notes; full extension history preserved.
-- **Vacancy detail**: timeline, internal notes/comments, extension history, SLA status badge (On Track / At Risk / Breached).
-- **Admin dashboard v1**: KPI cards (open, closed, replacement, new, SLA breaches) + countdown list of at-risk replacements.
-- **Filters & search** on vacancy list (client, role, status, type, date range).
+## Auth flow (candidate)
 
-### Phase 2 — Candidates & Pipeline
-- Candidate table + profile fields, resume upload to Supabase Storage (PDF/DOCX).
-- Pipeline stages (Sourcing → Joined / Rejected / On Hold), **Kanban + list views**, drag-and-drop stage updates.
-- Candidate ↔ vacancy assignment, recruiter notes, hiring manager feedback.
+Signup:
+- Candidate enters email + full name + password.
+- We send a 6-digit OTP; on verify we create the auth user with `password` set and `email_confirm: true`.
 
-### Phase 3 — Interviews + Email + Google Meet
-- Interview scheduling (rounds, interviewer, date/time, type).
-- Google Meet link generation + Calendar event (via Google connector — requires per-user OAuth setup; I'll walk you through it when we get here).
-- Email notifications (Lovable Emails) — interview invite, feedback pending, target date approaching, SLA breach.
-- In-app notifications.
+Login:
+- Enter email + password → normal `signInWithPassword`. No OTP.
+- Session lasts 24h (Supabase default is 1h access token, 30-day refresh — we'll set project JWT expiry to 24h and disable refresh persistence beyond that window by signing out on tab open if session older than 24h).
 
-### Phase 4 — SLA, Reports, Performance
-- SLA reminders cron (15/7/3/1 day).
-- Recruiter performance leaderboard.
-- Reports (vacancy, candidate, interview, recruiter, client, SLA, replacement) with Excel/CSV/PDF export.
-- Dashboard charts (recruiter perf, client-wise, role-wise, monthly trend, aging).
+Session-expiry OTP:
+- If `signInWithPassword` fails and it's been >24h since last login (tracked via `profiles.last_login_at`), UI flips to "Verify OTP to reset session," sends OTP, and on verify allows password entry again. (Password itself never expires — the OTP is the re-verification step you described.)
 
-### Phase 5 — AI features
-Resume parsing, candidate ranking, JD match score, interview question generation, closure prediction — via Lovable AI Gateway server functions.
+## Auth flow (recruiter / HR)
 
-### Phase 6 — Optional WebRTC in-app meetings
-Only if still needed after Google Meet is live. This is a large standalone build; recommend deferring or descoping.
+- No self-signup. Only `signInWithPassword`. Same 24h re-verify OTP rule.
+- Super admin (hr_admin role) creates the account via a new page `/_authenticated/admin/users`:
+  - Form: email, full name, role (recruiter | hr_admin), password.
+  - Calls a `createServerFn` guarded by `has_role('hr_admin')` that:
+    - `supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name, signup_as: role } })`
+    - Inserts/updates `user_roles` to the chosen role (overriding the trigger's default recruiter/candidate mapping).
+    - Emails the user their credentials via `sendGmail`.
 
----
+## Schema changes
 
-### What I need from you before starting Phase 1
-1. **OK to proceed on TanStack Start + Lovable Cloud** (instead of literal Next.js)? Same Postgres/Auth/Storage capabilities.
-2. **OK to phase the work** as above, starting with Phase 1?
-3. **Microsoft login**: Lovable Cloud natively supports Email, Google, Apple, Phone, SAML. **Microsoft is not natively supported** — would require connecting external Supabase. OK to ship with Email + Google for now?
-4. **In-app WebRTC video calling**: large scope, real ops cost (TURN servers). Recommend dropping or deferring to Phase 6. Confirm?
+Migration adds:
+- `profiles.last_login_at timestamptz`
+- Trigger or `signInWithPassword` wrapper server fn to update it (we'll use a server fn on successful sign-in — simpler and does not touch auth schema).
+- (auth_otps table already exists; we'll add `purpose text default 'signup'` to distinguish `signup` vs `reverify`.)
 
-Reply with answers (or just "go") and I'll start Phase 1.
+## Files touched
+
+- `src/lib/gmail-mailer.server.ts` — rewrite with `createRequire`.
+- `src/lib/otp-core.server.ts` — support `purpose`, `password` on signup, mark last_login on verify.
+- `src/lib/otp.functions.ts` — add `password` to request/verify schemas.
+- `src/lib/auth.functions.ts` (new) — `signInWithPasswordFn` (updates last_login), `adminCreateUser`.
+- `src/routes/auth.tsx` — new UI: sign in tab (email+password), sign up tab (email+name+password+OTP), re-verify path.
+- `src/routes/_authenticated/admin/users.tsx` (new) — super-admin form; guarded by role check in `beforeLoad`.
+- Migration: `alter table profiles add column last_login_at`, `alter table auth_otps add column purpose`.
+- Remove `worker-mailer` from `package.json`, add `nodemailer`.
+
+## Out of scope for this turn (say if you want them)
+
+- SPF/DKIM tuning (not possible without a domain; Gmail-from-Gmail already has DKIM).
+- Enforcing password strength via HIBP (one tool call, can add).
+- Email delivery to `m.mohanram@tvs-e.in` — dependent on their mail server accepting it.
