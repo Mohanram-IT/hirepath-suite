@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
         <nav className="flex-1 px-2 py-3 space-y-0.5">
-          {nav.map((n) => {
+          {[...nav, ...(isAdmin && !isCandidate ? adminNav : [])].map((n) => {
             const active = pathname.startsWith(n.to);
             const Icon = n.icon;
             return (
