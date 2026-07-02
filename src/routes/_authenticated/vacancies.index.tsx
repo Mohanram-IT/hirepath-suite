@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth, useRoles } from "@/hooks/use-auth";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,17 +23,21 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function VacancyList() {
+  const { user } = useAuth();
+  const { roles } = useRoles(user?.id);
+  const isCandidate = roles.includes("candidate") && !roles.some((r) => r !== "candidate");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [type, setType] = useState<string>("all");
 
   const { data: vacancies = [], isLoading } = useQuery({
-    queryKey: ["vacancies", status, type],
+    queryKey: ["vacancies", status, type, user?.id, isCandidate],
     queryFn: async () => {
       let query = supabase
         .from("vacancies")
         .select("*, clients(name), replacement_employees(deployment_deadline)")
         .order("created_at", { ascending: false });
+      if (isCandidate && user) query = query.eq("created_by", user.id);
       if (status !== "all") query = query.eq("status", status as never);
       if (type !== "all") query = query.eq("vacancy_type", type as never);
       const { data, error } = await query;
@@ -54,11 +59,11 @@ function VacancyList() {
   return (
     <div>
       <PageHeader
-        title="Vacancies"
-        subtitle="All open and historical requirements"
+        title={isCandidate ? "Vacancy requests" : "Vacancies"}
+        subtitle={isCandidate ? "Requests you posted for new or replacement hiring" : "All open and historical requirements"}
         actions={
           <Button asChild>
-            <Link to="/vacancies/new"><Plus className="size-4" /> New vacancy</Link>
+            <Link to="/vacancies/new"><Plus className="size-4" /> {isCandidate ? "Post vacancy" : "New vacancy"}</Link>
           </Button>
         }
       />
@@ -103,7 +108,7 @@ function VacancyList() {
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">Loading…</td></tr>
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No vacancies found.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">{isCandidate ? "No vacancy requests yet." : "No vacancies found."}</td></tr>
               )}
               {filtered.map((v) => {
                 const repl = Array.isArray(v.replacement_employees) ? v.replacement_employees[0] : v.replacement_employees;
