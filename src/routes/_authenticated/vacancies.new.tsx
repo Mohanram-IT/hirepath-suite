@@ -118,6 +118,7 @@ function NewVacancy() {
           notice_period_days: repl.notice_period_days,
           last_working_date: repl.last_working_date,
           early_relieving_date: repl.early_relieving_date || null,
+          deployment_deadline: deploymentDeadline,
         });
         if (e2) throw e2;
       }

@@ -4,12 +4,57 @@ import { z } from "zod";
 
 const markLoginSchema = z.object({ userId: z.string().uuid() });
 
-/** Called by the client after supabase.auth.signInWithPassword succeeds. */
-export const markPasswordLoginFn = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => markLoginSchema.parse(d))
+const candidateSignupSchema = z.object({
+  email: z.string().email(),
+  fullName: z.string().trim().min(1).max(120),
+  password: z.string().min(8).max(128),
+});
+
+export const candidateSignUpFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => candidateSignupSchema.parse(d))
   .handler(async ({ data }) => {
-    const { markPasswordLogin } = await import("./otp-core.server");
-    await markPasswordLogin(data.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const email = data.email.trim().toLowerCase();
+
+    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: { full_name: data.fullName, signup_as: "candidate" },
+    });
+    if (createErr) throw new Error(createErr.message);
+    const userId = created.user?.id;
+    if (!userId) throw new Error("Could not create account");
+
+    const { error: profileErr } = await supabaseAdmin.from("profiles").upsert({
+      id: userId,
+      full_name: data.fullName,
+      email,
+    });
+    if (profileErr) throw new Error(profileErr.message);
+
+    const { error: roleErr } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: userId, role: "candidate" }, { onConflict: "user_id,role" });
+    if (roleErr) throw new Error(roleErr.message);
+
+    const { data: existingCandidate, error: existingErr } = await supabaseAdmin
+      .from("candidates")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existingErr) throw new Error(existingErr.message);
+    if (!existingCandidate) {
+      const { error: candidateErr } = await supabaseAdmin.from("candidates").insert({
+        full_name: data.fullName,
+        email,
+        user_id: userId,
+        created_by: userId,
+        source: "Candidate signup",
+      });
+      if (candidateErr) throw new Error(candidateErr.message);
+    }
+
     return { ok: true as const };
   });
 
@@ -45,6 +90,13 @@ export const adminCreateStaffUser = createServerFn({ method: "POST" })
     if (createErr) throw new Error(createErr.message);
     const newId = created.user?.id;
     if (!newId) throw new Error("Failed to create user");
+
+    const { error: profileErr } = await supabaseAdmin.from("profiles").upsert({
+      id: newId,
+      full_name: data.fullName,
+      email,
+    });
+    if (profileErr) throw new Error(profileErr.message);
 
     // Overwrite role from trigger default
     await supabaseAdmin.from("user_roles").delete().eq("user_id", newId);
