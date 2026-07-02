@@ -17,7 +17,13 @@ export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   beforeLoad: async () => {
     const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/dashboard" });
+    if (data.session) {
+      const { data: isCandidateOnly } = await supabase.rpc("has_role", {
+        _user_id: data.session.user.id,
+        _role: "candidate",
+      });
+      throw redirect({ to: isCandidateOnly ? "/portal" : "/dashboard" });
+    }
   },
   component: AuthPage,
 });
@@ -106,7 +112,7 @@ function SignInPanel({ isCandidate }: { isCandidate: boolean }) {
     e.preventDefault();
     setBusy(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       toast.success("Signed in");
       window.location.href = isCandidate ? "/portal" : "/dashboard";
