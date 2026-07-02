@@ -29,7 +29,8 @@ function VacancyDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useAuth();
-  const { isAdmin } = useRoles(user?.id);
+  const { roles, isAdmin } = useRoles(user?.id);
+  const isCandidate = roles.includes("candidate") && !roles.some((r) => r !== "candidate");
 
   const { data: vacancy, isLoading } = useQuery({
     queryKey: ["vacancy", id],
@@ -115,15 +116,19 @@ function VacancyDetail() {
             <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/vacancies" })}>
               <ArrowLeft className="size-4" /> Back
             </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/vacancies/$id/pipeline" params={{ id }}>Pipeline</Link>
-            </Button>
-            <Select value={vacancy.status} onValueChange={(v) => updateStatus.mutate(v)}>
-              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {!isCandidate && (
+              <>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/vacancies/$id/pipeline" params={{ id }}>Pipeline</Link>
+                </Button>
+                <Select value={vacancy.status} onValueChange={(v) => updateStatus.mutate(v)}>
+                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
           </div>
         }
       />
@@ -174,30 +179,32 @@ function VacancyDetail() {
             </Card>
           )}
 
-          <Card>
-            <CardHeader><CardTitle className="text-base">Notes & timeline</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add an internal note…" />
-                <Button onClick={() => addComment.mutate()} disabled={!comment.trim() || addComment.isPending}>Post</Button>
-              </div>
-              <div className="space-y-3">
-                {comments.length === 0 && <div className="text-sm text-muted-foreground">No notes yet.</div>}
-                {comments.map((c) => (
-                  <div key={c.id} className="border-l-2 border-accent pl-3">
-                    <div className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">{c.author?.full_name ?? c.author?.email ?? "Someone"}</span> · {format(new Date(c.created_at), "PPp")}
+          {!isCandidate && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Notes & timeline</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <Textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add an internal note…" />
+                  <Button onClick={() => addComment.mutate()} disabled={!comment.trim() || addComment.isPending}>Post</Button>
+                </div>
+                <div className="space-y-3">
+                  {comments.length === 0 && <div className="text-sm text-muted-foreground">No notes yet.</div>}
+                  {comments.map((c) => (
+                    <div key={c.id} className="border-l-2 border-accent pl-3">
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{c.author?.full_name ?? c.author?.email ?? "Someone"}</span> · {format(new Date(c.created_at), "PPp")}
+                      </div>
+                      <div className="text-sm mt-0.5 whitespace-pre-wrap">{c.body}</div>
                     </div>
-                    <div className="text-sm mt-0.5 whitespace-pre-wrap">{c.body}</div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">
-          <Card>
+          {!isCandidate && <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2"><History className="size-4" /> Target extensions</CardTitle>
               {isAdmin && <ExtendDialog vacancyId={id} currentTarget={targetDate as string | null} onDone={() => { qc.invalidateQueries({ queryKey: ["vacancy", id] }); qc.invalidateQueries({ queryKey: ["extensions", id] }); }} />}
@@ -222,7 +229,7 @@ function VacancyDetail() {
               )}
               {!isAdmin && <div className="text-xs text-muted-foreground mt-2">Only HR Admin can extend target dates.</div>}
             </CardContent>
-          </Card>
+          </Card>}
         </div>
       </div>
     </div>
