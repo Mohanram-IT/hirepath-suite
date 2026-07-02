@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,23 @@ import { Plus, AlertTriangle, Briefcase, Clock, CheckCircle2, Repeat, Mail } fro
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
+  beforeLoad: async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw redirect({ to: "/auth" });
+    const { data: isCandidate } = await supabase.rpc("has_role", {
+      _user_id: userData.user.id,
+      _role: "candidate",
+    });
+    const { data: isStaff } = await supabase.rpc("has_role", {
+      _user_id: userData.user.id,
+      _role: "recruiter",
+    });
+    const { data: isAdmin } = await supabase.rpc("has_role", {
+      _user_id: userData.user.id,
+      _role: "hr_admin",
+    });
+    if (isCandidate && !isStaff && !isAdmin) throw redirect({ to: "/portal" });
+  },
   component: Dashboard,
 });
 

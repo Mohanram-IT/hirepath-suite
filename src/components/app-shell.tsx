@@ -20,6 +20,7 @@ const adminNav = [
 
 const candidateNav = [
   { to: "/portal", label: "My applications", icon: ClipboardList },
+  { to: "/vacancies", label: "Vacancy requests", icon: Briefcase },
   { to: "/jobs", label: "Browse jobs", icon: Search },
 ] as const;
 
@@ -34,7 +35,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   async function signOut() {
     await supabase.auth.signOut();
-    router.navigate({ to: "/auth" });
+    router.navigate({ to: "/auth", replace: true });
   }
 
   return (

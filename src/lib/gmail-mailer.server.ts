@@ -1,8 +1,4 @@
-import { createRequire } from "module";
-
-// Load nodemailer with CommonJS require to avoid Vite's ESM/CJS interop wrapping
-// (which caused "Class extends [object Module]" when imported statically).
-const require = createRequire(import.meta.url);
+import nodemailerModule from "nodemailer";
 
 type SendOpts = {
   to: string;
@@ -21,7 +17,7 @@ function getTransport() {
   const pass = process.env.GMAIL_APP_PASSWORD;
   if (!user || !pass) throw new Error("GMAIL_USER / GMAIL_APP_PASSWORD not configured");
 
-  const nodemailer = require("nodemailer") as {
+  const nodemailer = nodemailerModule as unknown as {
     createTransport: (opts: Record<string, unknown>) => unknown;
   };
   cachedTransport = nodemailer.createTransport({
