@@ -2,8 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const markLoginSchema = z.object({ userId: z.string().uuid() });
-
 const candidateSignupSchema = z.object({
   email: z.string().email(),
   fullName: z.string().trim().min(1).max(120),
