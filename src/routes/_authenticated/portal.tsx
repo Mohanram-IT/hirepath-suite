@@ -129,11 +129,5 @@ function CandidatePortal() {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="font-medium">{value}</div>
-    </div>
-  );
-}
+
+
