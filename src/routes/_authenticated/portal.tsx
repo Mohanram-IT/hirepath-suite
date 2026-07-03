@@ -31,7 +31,7 @@ function CandidatePortal() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidate_applications")
-        .select("id, stage, created_at, vacancy_id, vacancies(id, role, level, location, vacancy_type, target_hiring_date, clients(name), replacement_employees(employee_name, employee_code, resignation_date, last_working_date, early_relieving_date, deployment_deadline))")
+        .select("id, stage, created_at, vacancy_id, vacancies(id, role, level, location, clients(name))")
         .eq("candidate_id", candidate!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -58,9 +58,10 @@ function CandidatePortal() {
     <div>
       <PageHeader
         title={`Welcome${candidate?.full_name ? `, ${candidate.full_name.split(" ")[0]}` : ""}`}
-        subtitle="Track applications, replacement context, and deployment deadlines."
-        actions={<div className="flex gap-2"><Button asChild variant="outline"><Link to="/vacancies/new">Post vacancy</Link></Button><Button asChild><Link to="/jobs"><Search className="size-4" /> Browse jobs</Link></Button></div>}
+        subtitle="Track your job applications and upcoming interviews."
+        actions={<Button asChild><Link to="/jobs"><Search className="size-4" /> Browse jobs</Link></Button>}
       />
+
 
       <div className="p-8 max-w-5xl space-y-8">
         {upcoming.length > 0 && (
@@ -102,42 +103,25 @@ function CandidatePortal() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {applications.map((a) => {
-                const repl = Array.isArray(a.vacancies?.replacement_employees)
-                  ? a.vacancies?.replacement_employees[0]
-                  : a.vacancies?.replacement_employees;
-                const targetDate = a.vacancies?.target_hiring_date ?? repl?.deployment_deadline ?? null;
-                return (
-                  <Card key={a.id}>
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="font-medium">{a.vacancies?.role ?? "—"}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {a.vacancies?.clients?.name ?? "—"}
-                            {a.vacancies?.location && ` · ${a.vacancies.location}`}
-                            {` · applied ${format(new Date(a.created_at), "PP")}`}
-                          </div>
+              {applications.map((a) => (
+                <Card key={a.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="font-medium">{a.vacancies?.role ?? "—"}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {a.vacancies?.clients?.name ?? "—"}
+                          {a.vacancies?.location && ` · ${a.vacancies.location}`}
+                          {` · applied ${format(new Date(a.created_at), "PP")}`}
                         </div>
-                        <span className={`text-xs px-2.5 py-1 rounded-md border ${stageTone(a.stage)}`}>{stageLabel(a.stage)}</span>
                       </div>
-                      <div className="grid sm:grid-cols-3 gap-3 text-sm border-t pt-3">
-                        <Detail label="Type" value={a.vacancies?.vacancy_type === "replacement" ? "Replacement" : "New requirement"} />
-                        <Detail label="Level" value={a.vacancies?.level ?? "—"} />
-                        <Detail label="Deployment/target" value={targetDate ? format(new Date(targetDate), "PP") : "—"} />
-                        {repl && (
-                          <>
-                            <Detail label="Replacing" value={repl.employee_name} />
-                            <Detail label="Employee ID" value={repl.employee_code ?? "—"} />
-                            <Detail label="Last working day" value={format(new Date(repl.last_working_date), "PP")} />
-                          </>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                      <span className={`text-xs px-2.5 py-1 rounded-md border ${stageTone(a.stage)}`}>{stageLabel(a.stage)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
+
           )}
         </div>
       </div>
@@ -145,11 +129,5 @@ function CandidatePortal() {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="font-medium">{value}</div>
-    </div>
-  );
-}
+
+

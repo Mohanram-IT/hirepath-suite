@@ -20,7 +20,6 @@ const adminNav = [
 
 const candidateNav = [
   { to: "/portal", label: "My applications", icon: ClipboardList },
-  { to: "/vacancies", label: "Vacancy requests", icon: Briefcase },
   { to: "/jobs", label: "Browse jobs", icon: Search },
 ] as const;
 

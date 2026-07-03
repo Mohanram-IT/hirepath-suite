@@ -116,23 +116,54 @@ function ApplyDialog({ vacancyId, candidateId, userId }: { vacancyId: string; ca
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [experience, setExperience] = useState("");
+  const [skills, setSkills] = useState("");
+  const [currentCtc, setCurrentCtc] = useState("");
+  const [expectedCtc, setExpectedCtc] = useState("");
+  const [noticePeriod, setNoticePeriod] = useState("");
 
   const apply = useMutation({
     mutationFn: async () => {
       let cid = candidateId;
       if (!cid) throw new Error("Candidate profile missing — please sign out and back in.");
 
+      if (!experience.trim() || !skills.trim() || !expectedCtc.trim() || !noticePeriod.trim()) {
+        throw new Error("Please fill experience, skills, expected CTC and notice period.");
+      }
+
+      // Prevent duplicates
+      const { data: existing } = await supabase
+        .from("candidate_applications")
+        .select("id")
+        .eq("candidate_id", cid)
+        .eq("vacancy_id", vacancyId)
+        .maybeSingle();
+      if (existing) throw new Error("You've already applied to this position.");
+
+      let resumePath: string | undefined;
       if (resumeFile) {
         const path = `${userId}/${Date.now()}-${resumeFile.name}`;
         const { error: upErr } = await supabase.storage.from("resumes").upload(path, resumeFile);
         if (upErr) throw upErr;
-        await supabase.from("candidates").update({ resume_url: path }).eq("id", cid);
+        resumePath = path;
       }
+
+      const skillsArr = skills.split(",").map((s) => s.trim()).filter(Boolean);
+      const { error: updErr } = await supabase.from("candidates").update({
+        total_experience: Number(experience) || null,
+        skills: skillsArr,
+        current_ctc: currentCtc ? Number(currentCtc) : null,
+        expected_ctc: Number(expectedCtc),
+        notice_period_days: Number(noticePeriod),
+        ...(resumePath ? { resume_url: resumePath } : {}),
+      }).eq("id", cid);
+      if (updErr) throw updErr;
 
       const { error } = await supabase.from("candidate_applications").insert({
         candidate_id: cid, vacancy_id: vacancyId, created_by: userId, stage: "screening",
       });
       if (error) throw error;
+
     },
     onSuccess: () => { toast.success("Application submitted!"); setOpen(false); window.location.href = "/portal"; },
     onError: (e: Error) => toast.error(e.message),
@@ -143,16 +174,38 @@ function ApplyDialog({ vacancyId, candidateId, userId }: { vacancyId: string; ca
       <DialogTrigger asChild>
         <Button size="lg" className="w-full"><Send className="size-4" /> Apply for this position</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Submit your application</DialogTitle></DialogHeader>
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Total experience (years) *</Label>
+              <Input type="number" min="0" step="0.5" value={experience} onChange={(e) => setExperience(e.target.value)} />
+            </div>
+            <div>
+              <Label>Notice period (days) *</Label>
+              <Input type="number" min="0" value={noticePeriod} onChange={(e) => setNoticePeriod(e.target.value)} />
+            </div>
+            <div>
+              <Label>Current CTC</Label>
+              <Input type="number" min="0" value={currentCtc} onChange={(e) => setCurrentCtc(e.target.value)} placeholder="Annual" />
+            </div>
+            <div>
+              <Label>Expected CTC *</Label>
+              <Input type="number" min="0" value={expectedCtc} onChange={(e) => setExpectedCtc(e.target.value)} placeholder="Annual" />
+            </div>
+          </div>
           <div>
-            <Label>Resume (PDF, optional)</Label>
+            <Label>Skills * (comma separated)</Label>
+            <Input value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="React, Node.js, PostgreSQL" />
+          </div>
+          <div>
+            <Label>Resume (PDF)</Label>
             <Input type="file" accept=".pdf,.doc,.docx" onChange={(e) => setResumeFile(e.target.files?.[0] ?? null)} />
           </div>
           <div>
             <Label>Cover note (optional)</Label>
-            <Textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Why are you a great fit?" />
+            <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Why are you a great fit?" />
           </div>
         </div>
         <DialogFooter>

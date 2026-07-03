@@ -203,6 +203,13 @@ function ApplyDialog({ candidateId, userId, onDone }: { candidateId: string; use
   const submit = useMutation({
     mutationFn: async () => {
       if (!userId || !vacancyId) throw new Error("Pick a vacancy");
+      const { data: existing } = await supabase
+        .from("candidate_applications")
+        .select("id")
+        .eq("candidate_id", candidateId)
+        .eq("vacancy_id", vacancyId)
+        .maybeSingle();
+      if (existing) throw new Error("This candidate is already on that vacancy's pipeline.");
       const { error } = await supabase.from("candidate_applications").insert({
         candidate_id: candidateId, vacancy_id: vacancyId, created_by: userId, stage: "sourcing",
       });
@@ -211,6 +218,7 @@ function ApplyDialog({ candidateId, userId, onDone }: { candidateId: string; use
     onSuccess: () => { toast.success("Shortlisted"); setOpen(false); setVacancyId(""); onDone(); },
     onError: (e: Error) => toast.error(e.message),
   });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild><Button size="sm"><Plus className="size-4" /> Shortlist for vacancy</Button></DialogTrigger>
