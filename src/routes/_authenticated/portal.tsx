@@ -103,42 +103,25 @@ function CandidatePortal() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {applications.map((a) => {
-                const repl = Array.isArray(a.vacancies?.replacement_employees)
-                  ? a.vacancies?.replacement_employees[0]
-                  : a.vacancies?.replacement_employees;
-                const targetDate = a.vacancies?.target_hiring_date ?? repl?.deployment_deadline ?? null;
-                return (
-                  <Card key={a.id}>
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="font-medium">{a.vacancies?.role ?? "—"}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {a.vacancies?.clients?.name ?? "—"}
-                            {a.vacancies?.location && ` · ${a.vacancies.location}`}
-                            {` · applied ${format(new Date(a.created_at), "PP")}`}
-                          </div>
+              {applications.map((a) => (
+                <Card key={a.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="font-medium">{a.vacancies?.role ?? "—"}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {a.vacancies?.clients?.name ?? "—"}
+                          {a.vacancies?.location && ` · ${a.vacancies.location}`}
+                          {` · applied ${format(new Date(a.created_at), "PP")}`}
                         </div>
-                        <span className={`text-xs px-2.5 py-1 rounded-md border ${stageTone(a.stage)}`}>{stageLabel(a.stage)}</span>
                       </div>
-                      <div className="grid sm:grid-cols-3 gap-3 text-sm border-t pt-3">
-                        <Detail label="Type" value={a.vacancies?.vacancy_type === "replacement" ? "Replacement" : "New requirement"} />
-                        <Detail label="Level" value={a.vacancies?.level ?? "—"} />
-                        <Detail label="Deployment/target" value={targetDate ? format(new Date(targetDate), "PP") : "—"} />
-                        {repl && (
-                          <>
-                            <Detail label="Replacing" value={repl.employee_name} />
-                            <Detail label="Employee ID" value={repl.employee_code ?? "—"} />
-                            <Detail label="Last working day" value={format(new Date(repl.last_working_date), "PP")} />
-                          </>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                      <span className={`text-xs px-2.5 py-1 rounded-md border ${stageTone(a.stage)}`}>{stageLabel(a.stage)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
+
           )}
         </div>
       </div>
