@@ -149,21 +149,21 @@ function ApplyDialog({ vacancyId, candidateId, userId }: { vacancyId: string; ca
       }
 
       const skillsArr = skills.split(",").map((s) => s.trim()).filter(Boolean);
-      const candidateUpdate: Record<string, unknown> = {
+      const { error: updErr } = await supabase.from("candidates").update({
         total_experience: Number(experience) || null,
         skills: skillsArr,
         current_ctc: currentCtc ? Number(currentCtc) : null,
         expected_ctc: Number(expectedCtc),
         notice_period_days: Number(noticePeriod),
-      };
-      if (resumePath) candidateUpdate.resume_url = resumePath;
-      const { error: updErr } = await supabase.from("candidates").update(candidateUpdate).eq("id", cid);
+        ...(resumePath ? { resume_url: resumePath } : {}),
+      }).eq("id", cid);
       if (updErr) throw updErr;
 
       const { error } = await supabase.from("candidate_applications").insert({
-        candidate_id: cid, vacancy_id: vacancyId, created_by: userId, stage: "screening", notes: notes || null,
+        candidate_id: cid, vacancy_id: vacancyId, created_by: userId, stage: "screening",
       });
       if (error) throw error;
+
     },
     onSuccess: () => { toast.success("Application submitted!"); setOpen(false); window.location.href = "/portal"; },
     onError: (e: Error) => toast.error(e.message),
