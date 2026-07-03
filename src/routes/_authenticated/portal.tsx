@@ -31,7 +31,7 @@ function CandidatePortal() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidate_applications")
-        .select("id, stage, created_at, vacancy_id, vacancies(id, role, level, location, vacancy_type, target_hiring_date, clients(name), replacement_employees(employee_name, employee_code, resignation_date, last_working_date, early_relieving_date, deployment_deadline))")
+        .select("id, stage, created_at, vacancy_id, vacancies(id, role, level, location, clients(name))")
         .eq("candidate_id", candidate!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -58,9 +58,10 @@ function CandidatePortal() {
     <div>
       <PageHeader
         title={`Welcome${candidate?.full_name ? `, ${candidate.full_name.split(" ")[0]}` : ""}`}
-        subtitle="Track applications, replacement context, and deployment deadlines."
-        actions={<div className="flex gap-2"><Button asChild variant="outline"><Link to="/vacancies/new">Post vacancy</Link></Button><Button asChild><Link to="/jobs"><Search className="size-4" /> Browse jobs</Link></Button></div>}
+        subtitle="Track your job applications and upcoming interviews."
+        actions={<Button asChild><Link to="/jobs"><Search className="size-4" /> Browse jobs</Link></Button>}
       />
+
 
       <div className="p-8 max-w-5xl space-y-8">
         {upcoming.length > 0 && (
