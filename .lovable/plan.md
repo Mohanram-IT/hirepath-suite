@@ -1,63 +1,71 @@
-## Goals
+# Firebase Migration — Phased Plan (fits daily free credits)
 
-1. Fix email delivery (recruiter login + candidate) — replace `worker-mailer` (which requires `cloudflare:sockets`, missing on our Node runtime) with `nodemailer`, loaded via `createRequire` to avoid the earlier bundling error.
-2. Reduce spam-folder placement with proper headers.
-3. Switch auth to password-first with OTP only when the session has expired or the account is new.
-4. Add a super-admin form to create recruiter/HR accounts with an admin-chosen password, emailed to the user.
+Goal: replace Supabase/Lovable Cloud with Firebase (Auth + Firestore + Storage + Cloud Functions) so you can run the app locally with your own free Firebase project. Each phase is scoped small enough to fit in ~5 daily credits. Do them one per day, in order.
 
-## Email fix
+Before starting you must create (free, no card): a Firebase project, enable Email/Password + Google Auth, create a Firestore database (production mode), enable Storage, and download a web app config + a service-account JSON.
 
-- Remove `worker-mailer`, reinstall `nodemailer` + `@types/nodemailer`.
-- Rewrite `src/lib/gmail-mailer.server.ts` to load nodemailer with `createRequire(import.meta.url)('nodemailer')` inside the handler. This sidesteps Vite's ESM wrapper that produced `Class extends [object Module]`.
-- Use `smtp.gmail.com:465`, `secure: true`, `GMAIL_USER` / `GMAIL_APP_PASSWORD`.
-- Set `From: "TalentFlow" <GMAIL_USER>`, add `Reply-To`, `List-Unsubscribe`, and a plain-text alternative — these three are the biggest levers against Gmail marking mail as spam.
-- Return the real `messageId` from nodemailer for `email_send_log`.
+---
 
-Note: `m.mohanram@tvs-e.in` non-delivery is out of our control (their mail server / corporate spam gateway rejected or quarantined it). We'll surface the SMTP error into `email_send_log.error_message` so you can see exactly why. Users can whitelist your Gmail sender in their corporate mail rules.
+## Phase 1 — Firebase project wiring (foundation)
+- Add `firebase` and `firebase-admin` packages.
+- Create `src/integrations/firebase/client.ts` (browser: auth, firestore, storage).
+- Create `src/integrations/firebase/admin.server.ts` (service account, admin SDK).
+- Add env vars: `VITE_FIREBASE_*` (public config) + `FIREBASE_SERVICE_ACCOUNT_JSON` (server).
+- No feature changes yet. App still runs on Supabase.
 
-## Auth flow (candidate)
+## Phase 2 — Auth swap
+- Replace `supabase.auth` in `src/hooks/use-auth.ts`, `src/routes/auth.tsx`, `src/routes/_authenticated/route.tsx`, and Google sign-in with Firebase Auth (`onAuthStateChanged`, `signInWithEmailAndPassword`, `signInWithPopup(GoogleAuthProvider)`).
+- Rewrite `attachSupabaseAuth` middleware → `attachFirebaseAuth` (sends Firebase ID token).
+- Rewrite `requireSupabaseAuth` server middleware → verify ID token with `admin.auth().verifyIdToken`.
 
-Signup:
-- Candidate enters email + full name + password.
-- We send a 6-digit OTP; on verify we create the auth user with `password` set and `email_confirm: true`.
+## Phase 3 — Roles + profiles collection
+- Create Firestore collections: `profiles/{uid}`, `user_roles/{uid}` (array of roles).
+- On first sign-up, create profile + assign role (first user = `hr_admin`, else per `signup_as`).
+- Update `useRoles` hook to read from Firestore.
+- Port `has_role` check to a server helper using admin SDK.
 
-Login:
-- Enter email + password → normal `signInWithPassword`. No OTP.
-- Session lasts 24h (Supabase default is 1h access token, 30-day refresh — we'll set project JWT expiry to 24h and disable refresh persistence beyond that window by signing out on tab open if session older than 24h).
+## Phase 4 — Core collections schema + security rules
+- Map tables → collections: `candidates`, `vacancies`, `clients`, `candidate_applications`, `interviews`, `comments`, `stage_history`, `notifications`, `replacement_employees`, `extensions`, `audit_logs`, `email_send_log`.
+- Write `firestore.rules` mirroring current RLS (owner-based + role-based).
+- No UI changes yet.
 
-Session-expiry OTP:
-- If `signInWithPassword` fails and it's been >24h since last login (tracked via `profiles.last_login_at`), UI flips to "Verify OTP to reset session," sends OTP, and on verify allows password entry again. (Password itself never expires — the OTP is the re-verification step you described.)
+## Phase 5 — Candidates + Vacancies CRUD
+- Rewrite queries in `candidates.index/new/$id.tsx` and `vacancies.index/new/$id.tsx` to use Firestore (`getDocs`, `addDoc`, `updateDoc`, `onSnapshot`).
+- Remove Supabase calls from these pages.
 
-## Auth flow (recruiter / HR)
+## Phase 6 — Clients, Interviews, Pipeline, Comments
+- Port `clients.tsx`, `interviews.index.tsx`, `vacancies.$id.pipeline.tsx`, comments to Firestore.
+- Port `stage_history` writes.
 
-- No self-signup. Only `signInWithPassword`. Same 24h re-verify OTP rule.
-- Super admin (hr_admin role) creates the account via a new page `/_authenticated/admin/users`:
-  - Form: email, full name, role (recruiter | hr_admin), password.
-  - Calls a `createServerFn` guarded by `has_role('hr_admin')` that:
-    - `supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name, signup_as: role } })`
-    - Inserts/updates `user_roles` to the chosen role (overriding the trigger's default recruiter/candidate mapping).
-    - Emails the user their credentials via `sendGmail`.
+## Phase 7 — Storage (resumes) + public jobs pages
+- Move `resumes` bucket to Firebase Storage with rules (owner + hr_admin read).
+- Update resume upload/download code.
+- Port public `jobs.index.tsx` / `jobs.$id.tsx` to read published vacancies from Firestore.
 
-## Schema changes
+## Phase 8 — Server functions + dashboard + admin
+- Convert `hr-digest`, `notify`, admin user-create, and dashboard queries to admin SDK.
+- Rewrite `/api/public/hooks/hr-daily-digest` using admin SDK.
+- Email sending (Gmail) stays as-is.
 
-Migration adds:
-- `profiles.last_login_at timestamptz`
-- Trigger or `signInWithPassword` wrapper server fn to update it (we'll use a server fn on successful sign-in — simpler and does not touch auth schema).
-- (auth_otps table already exists; we'll add `purpose text default 'signup'` to distinguish `signup` vs `reverify`.)
+## Phase 9 — Cleanup + local run guide
+- Delete Supabase integration files, migrations, `supabase/` folder.
+- Remove `@supabase/*` deps.
+- Add `README-LOCAL.md` with: `bun install`, set `.env`, `bun run dev` → http://localhost:8080.
+- Verify all routes load with no 404s.
 
-## Files touched
+---
 
-- `src/lib/gmail-mailer.server.ts` — rewrite with `createRequire`.
-- `src/lib/otp-core.server.ts` — support `purpose`, `password` on signup, mark last_login on verify.
-- `src/lib/otp.functions.ts` — add `password` to request/verify schemas.
-- `src/lib/auth.functions.ts` (new) — `signInWithPasswordFn` (updates last_login), `adminCreateUser`.
-- `src/routes/auth.tsx` — new UI: sign in tab (email+password), sign up tab (email+name+password+OTP), re-verify path.
-- `src/routes/_authenticated/admin/users.tsx` (new) — super-admin form; guarded by role check in `beforeLoad`.
-- Migration: `alter table profiles add column last_login_at`, `alter table auth_otps add column purpose`.
-- Remove `worker-mailer` from `package.json`, add `nodemailer`.
+## Technical details
 
-## Out of scope for this turn (say if you want them)
+- Firestore has no joins — denormalize (e.g. store `vacancy_title` on `candidate_applications`).
+- No enums — use string literals + rules validation.
+- No `auth.uid()` triggers — use Cloud Functions `onCreate` for the "first user = admin" logic, or handle it client-side on first sign-in.
+- ID token verification runs on Cloudflare Workers via `firebase-admin` REST fallback OR switch SSR entry to Node — I'll use the `jose`-based JWT verification against Google's public keys (Worker-compatible) to avoid `firebase-admin` in the Worker.
+- Realtime lists use `onSnapshot`; one-shot reads use `getDocs`.
 
-- SPF/DKIM tuning (not possible without a domain; Gmail-from-Gmail already has DKIM).
-- Enforcing password strength via HIBP (one tool call, can add).
-- Email delivery to `m.mohanram@tvs-e.in` — dependent on their mail server accepting it.
+## What I need from you before Phase 1
+1. Confirm you've created a Firebase project.
+2. Paste the web app config (`apiKey`, `authDomain`, `projectId`, `storageBucket`, `appId`) — safe to share, they're public.
+3. Generate a service account JSON (Project Settings → Service Accounts → Generate new private key) — I'll store it via `add_secret`, never in code.
+
+Reply "start phase 1" (with the config above) when ready and I'll do only Phase 1 that day.
