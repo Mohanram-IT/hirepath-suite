@@ -1,14 +1,13 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { waitForFirebaseUser, signInWithEmail, signUpWithEmail, signInWithGoogle, getUserRoles } from "@/integrations/firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Briefcase, Users, Mail, ArrowLeft, Lock } from "lucide-react";
-import { candidateSignUpFn } from "@/lib/auth.functions";
 
 const searchSchema = z.object({ as: z.enum(["candidate", "recruiter"]).default("recruiter") });
 
@@ -16,13 +15,11 @@ export const Route = createFileRoute("/auth")({
   ssr: false,
   validateSearch: searchSchema,
   beforeLoad: async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data.session) {
-      const { data: isCandidateOnly } = await supabase.rpc("has_role", {
-        _user_id: data.session.user.id,
-        _role: "candidate",
-      });
-      throw redirect({ to: isCandidateOnly ? "/portal" : "/dashboard" });
+    const user = await waitForFirebaseUser();
+    if (user) {
+      const roles = await getUserRoles(user.uid);
+      const candidateOnly = roles.includes("candidate") && !roles.some((r) => r !== "candidate");
+      throw redirect({ to: candidateOnly ? "/portal" : "/dashboard" });
     }
   },
   component: AuthPage,
@@ -108,12 +105,23 @@ function SignInPanel({ isCandidate }: { isCandidate: boolean }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  async function google() {
+    setBusy(true);
+    try {
+      await signInWithGoogle();
+      window.location.href = isCandidate ? "/portal" : "/dashboard";
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Google sign-in failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      await signInWithEmail(email, password);
       toast.success("Signed in");
       window.location.href = isCandidate ? "/portal" : "/dashboard";
     } catch (err) {
@@ -142,6 +150,13 @@ function SignInPanel({ isCandidate }: { isCandidate: boolean }) {
       <Button type="submit" className="w-full" disabled={busy || !email || !password}>
         {busy ? "Signing in…" : "Sign in"}
       </Button>
+      <div className="relative py-1">
+        <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+        <div className="relative flex justify-center"><span className="bg-background px-2 text-xs text-muted-foreground">or</span></div>
+      </div>
+      <Button type="button" variant="outline" className="w-full" disabled={busy} onClick={google}>
+        Continue with Google
+      </Button>
     </form>
   );
 }
@@ -157,9 +172,7 @@ function SignUpPanel() {
     if (password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     setBusy(true);
     try {
-      await candidateSignUpFn({ data: { email, fullName, password } });
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      await signUpWithEmail(email, password, fullName);
       toast.success("Account created");
       window.location.href = "/portal";
     } catch (err) {
