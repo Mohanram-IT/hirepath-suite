@@ -105,7 +105,7 @@ function JobDetail() {
               </div>
             </div>
           ) : (
-            <ApplyDialog vacancyId={id} candidateId={userInfo.candidate?.id} userId={userInfo.user.id} />
+            <ApplyDialog vacancyId={id} candidateId={userInfo.candidate?.id} userId={userInfo.user.uid} />
           )}
         </div>
       </article>
