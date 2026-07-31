@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { waitForFirebaseUser } from "@/integrations/firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Video, VideoOff, PhoneOff, MonitorUp, Copy, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -8,8 +9,8 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/meet/$roomId")({
   ssr: false,
   beforeLoad: async ({ params }) => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/auth", search: { as: "candidate" } });
+    const user = await waitForFirebaseUser();
+    if (!user) throw redirect({ to: "/auth", search: { as: "candidate" } });
     return { roomId: params.roomId };
   },
   component: MeetRoom,
@@ -39,9 +40,9 @@ function MeetRoom() {
     let cleanupFns: (() => void)[] = [];
 
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await waitForFirebaseUser();
       if (!user) return;
-      const myId = user.id;
+      const myId = user.uid;
       setMyUserId(myId);
 
       // 1) Get local media

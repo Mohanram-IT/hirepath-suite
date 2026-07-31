@@ -2,6 +2,7 @@ import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle, Search, ClipboardList, Video, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
+import { firebaseSignOut } from "@/integrations/firebase/auth";
 import { Button } from "@/components/ui/button";
 import type { ReactNode } from "react";
 
@@ -33,7 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = isCandidate ? candidateNav : staffNav;
 
   async function signOut() {
-    await supabase.auth.signOut();
+    await firebaseSignOut();
     router.navigate({ to: "/auth", replace: true });
   }
 

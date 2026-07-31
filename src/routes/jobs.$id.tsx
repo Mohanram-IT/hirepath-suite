@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { waitForFirebaseUser } from "@/integrations/firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
@@ -35,9 +36,9 @@ function JobDetail() {
   const { data: userInfo } = useQuery({
     queryKey: ["public-job-user"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await waitForFirebaseUser();
       if (!user) return { user: null, candidate: null, alreadyApplied: false };
-      const { data: c } = await supabase.from("candidates").select("id").eq("user_id", user.id).maybeSingle();
+      const { data: c } = await supabase.from("candidates").select("id").eq("user_id", user.uid).maybeSingle();
       let alreadyApplied = false;
       if (c) {
         const { data: app } = await supabase.from("candidate_applications").select("id").eq("candidate_id", c.id).eq("vacancy_id", id).maybeSingle();

@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { waitForFirebaseUser, getUserRoles } from "@/integrations/firebase/auth";
 import { adminCreateStaffUser } from "@/lib/auth.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,10 @@ import { UserPlus } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   beforeLoad: async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw redirect({ to: "/auth" });
-    const { data: isAdmin } = await supabase.rpc("has_role", {
-      _user_id: userData.user.id,
-      _role: "hr_admin",
-    });
-    if (!isAdmin) throw redirect({ to: "/dashboard" });
+    const user = await waitForFirebaseUser();
+    if (!user) throw redirect({ to: "/auth" });
+    const roles = await getUserRoles(user.uid);
+    if (!roles.includes("hr_admin")) throw redirect({ to: "/dashboard" });
   },
   component: AdminUsersPage,
 });
