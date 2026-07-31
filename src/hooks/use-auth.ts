@@ -1,41 +1,61 @@
 import { useEffect, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
+import { firebaseAuth } from "@/integrations/firebase/client";
+import { getUserRoles, type AppRole } from "@/integrations/firebase/auth";
 
-export type AppRole = Database["public"]["Enums"]["app_role"];
+export type { AppRole };
+
+/** Minimal user shape kept compatible with the rest of the app (`user.id`, `user.email`). */
+export type AppUser = {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  firebaseUser: FirebaseUser;
+};
 
 export function useAuth() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-    });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
+    const unsub = onAuthStateChanged(firebaseAuth, (u) => {
+      setUser(
+        u ? { id: u.uid, email: u.email, displayName: u.displayName, firebaseUser: u } : null,
+      );
       setLoading(false);
     });
-    return () => sub.subscription.unsubscribe();
+    return unsub;
   }, []);
 
-  return { session, user, loading };
+  return { user, loading, session: user ? { user } : null };
 }
 
 export function useRoles(userId: string | undefined) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    if (!userId) { setRoles([]); setLoading(false); return; }
+    let cancelled = false;
+    if (!userId) {
+      setRoles([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    supabase.from("user_roles").select("role").eq("user_id", userId).then(({ data }) => {
-      setRoles((data ?? []).map((r) => r.role as AppRole));
+    getUserRoles(userId).then((r) => {
+      if (cancelled) return;
+      setRoles(r);
       setLoading(false);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
-  return { roles, loading, hasRole: (r: AppRole) => roles.includes(r), isAdmin: roles.includes("hr_admin") };
+
+  return {
+    roles,
+    loading,
+    hasRole: (r: AppRole) => roles.includes(r),
+    isAdmin: roles.includes("hr_admin"),
+  };
 }
