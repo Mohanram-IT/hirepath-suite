@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myRoles() {
+      return signedIn() && exists(/databases/$(database)/documents/user_roles/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/user_roles/$(request.auth.uid)).data.roles
+        : [];
+    }
+
+    function isAdmin() {
+      return 'hr_admin' in myRoles();
+    }
+
+    function isStaff() {
+      return isAdmin() || 'recruiter' in myRoles();
+    }
+
+    // Marks whether the first (bootstrap) admin has been claimed.
+    match /app_meta/bootstrap {
+      allow read: if signedIn();
+      // Can only ever be created once, by the user claiming it.
+      allow create: if signedIn() && request.resource.data.claimed_by == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /profiles/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    match /user_roles/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+      // Self-provisioning on first sign-in: a user may create their own role doc,
+      // but may never grant themselves staff roles unless they are the bootstrap admin.
+      allow create: if signedIn() && request.auth.uid == uid && (
+        request.resource.data.roles.hasOnly(['candidate']) ||
+        !exists(/databases/$(database)/documents/app_meta/bootstrap)
+      );
+      allow update, delete: if isAdmin();
+    }
+  }
+}
