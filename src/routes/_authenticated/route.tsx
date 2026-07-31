@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { waitForFirebaseUser } from "@/integrations/firebase/auth";
+import { ensureUserRecord } from "@/integrations/firebase/provisioning";
 import { AppShell } from "@/components/app-shell";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -7,6 +8,8 @@ export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {
     const user = await waitForFirebaseUser();
     if (!user) throw redirect({ to: "/auth" });
+    // Idempotent: guarantees profile + role docs exist for any signed-in user.
+    await ensureUserRecord(user).catch(() => {});
     return { user };
   },
   component: () => (

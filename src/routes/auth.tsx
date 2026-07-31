@@ -2,6 +2,7 @@ import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 import { waitForFirebaseUser, signInWithEmail, signUpWithEmail, signInWithGoogle, getUserRoles } from "@/integrations/firebase/auth";
+import { ensureUserRecord } from "@/integrations/firebase/provisioning";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,8 +109,9 @@ function SignInPanel({ isCandidate }: { isCandidate: boolean }) {
   async function google() {
     setBusy(true);
     try {
-      await signInWithGoogle();
-      window.location.href = isCandidate ? "/portal" : "/dashboard";
+      const cred = await signInWithGoogle();
+      const roles = await ensureUserRecord(cred.user, isCandidate ? "candidate" : "recruiter");
+      window.location.href = roles.some((r) => r !== "candidate") ? "/dashboard" : "/portal";
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
     } finally {
@@ -121,9 +123,10 @@ function SignInPanel({ isCandidate }: { isCandidate: boolean }) {
     e.preventDefault();
     setBusy(true);
     try {
-      await signInWithEmail(email, password);
+      const cred = await signInWithEmail(email, password);
+      const roles = await ensureUserRecord(cred.user, isCandidate ? "candidate" : "recruiter");
       toast.success("Signed in");
-      window.location.href = isCandidate ? "/portal" : "/dashboard";
+      window.location.href = roles.some((r) => r !== "candidate") ? "/dashboard" : "/portal";
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not sign in");
     } finally {
@@ -172,9 +175,10 @@ function SignUpPanel() {
     if (password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     setBusy(true);
     try {
-      await signUpWithEmail(email, password, fullName);
+      const cred = await signUpWithEmail(email, password, fullName);
+      const roles = await ensureUserRecord(cred.user, "candidate");
       toast.success("Account created");
-      window.location.href = "/portal";
+      window.location.href = roles.some((r) => r !== "candidate") ? "/dashboard" : "/portal";
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create account");
     } finally {
