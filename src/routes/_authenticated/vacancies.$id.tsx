@@ -1,8 +1,25 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
+import {
+  COL,
+  type VacancyDoc,
+  type ReplacementDoc,
+  type CommentDoc,
+  type ExtensionDoc,
+  type ProfileDoc,
+} from "@/integrations/firebase/schema";
+import {
+  createDocIn,
+  getDocById,
+  listDocs,
+  listRecent,
+  listWhereIn,
+  toDate,
+  updateDocIn,
+  where,
+} from "@/integrations/firebase/db";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,54 +51,46 @@ function VacancyDetail() {
 
   const { data: vacancy, isLoading } = useQuery({
     queryKey: ["vacancy", id],
+    queryFn: () => getDocById<VacancyDoc>(COL.vacancies, id),
+  });
+
+  const { data: repl = null } = useQuery({
+    queryKey: ["replacement", id],
+    enabled: !!vacancy,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vacancies")
-        .select("*, clients(id, name), replacement_employees(*)")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      const rows = await listDocs<ReplacementDoc>(COL.replacements, where("vacancy_id", "==", id));
+      return rows[0] ?? null;
     },
   });
 
   const { data: comments = [] } = useQuery({
     queryKey: ["comments", id],
+    enabled: !isCandidate,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("comments")
-        .select("*")
-        .eq("vacancy_id", id)
-        .order("created_at", { ascending: false });
-      if (!data) return [];
-      const authorIds = [...new Set(data.map((c) => c.author_id))];
-      const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", authorIds);
-      const map = new Map((profs ?? []).map((p) => [p.id, p]));
-      return data.map((c) => ({ ...c, author: map.get(c.author_id) ?? null }));
+      const rows = await listRecent<CommentDoc>(COL.comments, where("vacancy_id", "==", id));
+      const profiles = await listWhereIn<ProfileDoc>(COL.profiles, "id", rows.map((c) => c.author_id));
+      const map = new Map(profiles.map((p) => [p.id, p]));
+      return rows.map((c) => ({ ...c, author: map.get(c.author_id) ?? null }));
     },
   });
 
   const { data: extensions = [] } = useQuery({
     queryKey: ["extensions", id],
+    enabled: !isCandidate,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("extensions")
-        .select("*")
-        .eq("vacancy_id", id)
-        .order("approved_at", { ascending: false });
-      if (!data) return [];
-      const ids = [...new Set(data.map((e) => e.approved_by).filter(Boolean))] as string[];
-      const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", ids);
-      const map = new Map((profs ?? []).map((p) => [p.id, p]));
-      return data.map((e) => ({ ...e, approver: e.approved_by ? map.get(e.approved_by) : null }));
+      const rows = await listRecent<ExtensionDoc>(COL.extensions, where("vacancy_id", "==", id));
+      const profiles = await listWhereIn<ProfileDoc>(
+        COL.profiles,
+        "id",
+        rows.map((e) => e.approved_by).filter(Boolean) as string[],
+      );
+      const map = new Map(profiles.map((p) => [p.id, p]));
+      return rows.map((e) => ({ ...e, approver: e.approved_by ? map.get(e.approved_by) ?? null : null }));
     },
   });
 
   const updateStatus = useMutation({
-    mutationFn: async (status: string) => {
-      const { error } = await supabase.from("vacancies").update({ status: status as never }).eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (status: string) => updateDocIn(COL.vacancies, id, { status }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["vacancy", id] }); toast.success("Status updated"); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -90,10 +99,12 @@ function VacancyDetail() {
   const addComment = useMutation({
     mutationFn: async () => {
       if (!user || !comment.trim()) return;
-      const { error } = await supabase.from("comments").insert({
-        vacancy_id: id, author_id: user.id, body: comment.trim(), kind: "internal",
+      await createDocIn(COL.comments, {
+        vacancy_id: id,
+        author_id: user.id,
+        body: comment.trim(),
+        kind: "internal",
       });
-      if (error) throw error;
     },
     onSuccess: () => { setComment(""); qc.invalidateQueries({ queryKey: ["comments", id] }); },
     onError: (e: Error) => toast.error(e.message),
@@ -102,15 +113,15 @@ function VacancyDetail() {
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading…</div>;
   if (!vacancy) return <div className="p-8">Not found. <Link to="/vacancies" className="underline">Back</Link></div>;
 
-  const repl = Array.isArray(vacancy.replacement_employees) ? vacancy.replacement_employees[0] : vacancy.replacement_employees;
-  const targetDate = vacancy.target_hiring_date ?? repl?.deployment_deadline ?? null;
-  const sla = computeSla(targetDate as string | null);
+  const targetDate = vacancy.target_hiring_date ?? repl?.deployment_deadline ?? vacancy.deployment_deadline ?? null;
+  const sla = computeSla(targetDate);
+  const created = toDate(vacancy.created_at);
 
   return (
     <div>
       <PageHeader
         title={vacancy.role}
-        subtitle={`${vacancy.clients?.name ?? "No client"} · ${vacancy.level} · ${vacancy.location ?? "—"}`}
+        subtitle={`${vacancy.client_name ?? "No client"} · ${vacancy.level} · ${vacancy.location ?? "—"}`}
         actions={
           <div className="flex gap-2 items-center">
             <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/vacancies" })}>
@@ -143,7 +154,7 @@ function VacancyDetail() {
               <Info label="Openings" value={String(vacancy.openings)} />
               <Info label="Experience" value={vacancy.experience_min || vacancy.experience_max ? `${vacancy.experience_min ?? "?"} – ${vacancy.experience_max ?? "?"} yrs` : "—"} />
               <Info label="Target date" value={targetDate ?? "—"} />
-              <Info label="Created" value={format(new Date(vacancy.created_at), "PP")} />
+              <Info label="Created" value={created ? format(created, "PP") : "—"} />
               <Info label="Status" value={STATUS_LABELS[vacancy.status]} />
               <div className="col-span-full">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Skills</div>
@@ -161,7 +172,7 @@ function VacancyDetail() {
             </CardContent>
           </Card>
 
-          {repl && (
+          {repl && !isCandidate && (
             <Card>
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><CalendarClock className="size-4" /> Replacement details</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
@@ -173,7 +184,7 @@ function VacancyDetail() {
                 <Info label="Early relieving" value={repl.early_relieving_date ?? "—"} />
                 <div className="col-span-full rounded-md border bg-secondary/50 px-4 py-3">
                   <div className="text-xs uppercase tracking-wider text-muted-foreground">Deployment deadline</div>
-                  <div className="font-semibold text-lg">{repl.deployment_deadline}</div>
+                  <div className="font-semibold text-lg">{repl.deployment_deadline ?? "—"}</div>
                 </div>
               </CardContent>
             </Card>
@@ -189,14 +200,18 @@ function VacancyDetail() {
                 </div>
                 <div className="space-y-3">
                   {comments.length === 0 && <div className="text-sm text-muted-foreground">No notes yet.</div>}
-                  {comments.map((c) => (
-                    <div key={c.id} className="border-l-2 border-accent pl-3">
-                      <div className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{c.author?.full_name ?? c.author?.email ?? "Someone"}</span> · {format(new Date(c.created_at), "PPp")}
+                  {comments.map((c) => {
+                    const at = toDate(c.created_at);
+                    return (
+                      <div key={c.id} className="border-l-2 border-accent pl-3">
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{c.author?.full_name ?? c.author?.email ?? "Someone"}</span>
+                          {at ? ` · ${format(at, "PPp")}` : ""}
+                        </div>
+                        <div className="text-sm mt-0.5 whitespace-pre-wrap">{c.body}</div>
                       </div>
-                      <div className="text-sm mt-0.5 whitespace-pre-wrap">{c.body}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -207,24 +222,27 @@ function VacancyDetail() {
           {!isCandidate && <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2"><History className="size-4" /> Target extensions</CardTitle>
-              {isAdmin && <ExtendDialog vacancyId={id} currentTarget={targetDate as string | null} onDone={() => { qc.invalidateQueries({ queryKey: ["vacancy", id] }); qc.invalidateQueries({ queryKey: ["extensions", id] }); }} />}
+              {isAdmin && <ExtendDialog vacancyId={id} currentTarget={targetDate} onDone={() => { qc.invalidateQueries({ queryKey: ["vacancy", id] }); qc.invalidateQueries({ queryKey: ["extensions", id] }); }} />}
             </CardHeader>
             <CardContent>
               {extensions.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No extensions yet.</div>
               ) : (
                 <div className="space-y-3">
-                  {extensions.map((e) => (
-                    <div key={e.id} className="text-sm border rounded-md p-3">
-                      <div className="flex items-center justify-between">
-                        <div><span className="text-muted-foreground line-through">{e.original_date}</span> → <span className="font-semibold">{e.extended_date}</span></div>
-                        <div className="text-xs text-muted-foreground">{format(new Date(e.approved_at), "PP")}</div>
+                  {extensions.map((e) => {
+                    const at = toDate(e.approved_at ?? e.created_at);
+                    return (
+                      <div key={e.id} className="text-sm border rounded-md p-3">
+                        <div className="flex items-center justify-between">
+                          <div><span className="text-muted-foreground line-through">{e.original_date}</span> → <span className="font-semibold">{e.extended_date}</span></div>
+                          <div className="text-xs text-muted-foreground">{at ? format(at, "PP") : "—"}</div>
+                        </div>
+                        <div className="mt-1">{e.reason}</div>
+                        {e.approval_notes && <div className="text-xs text-muted-foreground mt-1">{e.approval_notes}</div>}
+                        <div className="text-xs text-muted-foreground mt-1">by {e.approver?.full_name ?? e.approver?.email ?? "—"}</div>
                       </div>
-                      <div className="mt-1">{e.reason}</div>
-                      {e.approval_notes && <div className="text-xs text-muted-foreground mt-1">{e.approval_notes}</div>}
-                      <div className="text-xs text-muted-foreground mt-1">by {e.approver?.full_name ?? e.approver?.email ?? "—"}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               {!isAdmin && <div className="text-xs text-muted-foreground mt-2">Only HR Admin can extend target dates.</div>}
@@ -255,18 +273,16 @@ function ExtendDialog({ vacancyId, currentTarget, onDone }: { vacancyId: string;
   const submit = useMutation({
     mutationFn: async () => {
       if (!user || !currentTarget) throw new Error("Missing data");
-      const { error } = await supabase.from("extensions").insert({
+      await createDocIn(COL.extensions, {
         vacancy_id: vacancyId,
         original_date: currentTarget,
         extended_date: extendedDate,
         reason,
         approval_notes: notes || null,
         approved_by: user.id,
+        approved_at: new Date().toISOString(),
       });
-      if (error) throw error;
-      // Update vacancy target date (works whether replacement or not — we shadow it)
-      const { error: e2 } = await supabase.from("vacancies").update({ target_hiring_date: extendedDate }).eq("id", vacancyId);
-      if (e2) throw e2;
+      await updateDocIn(COL.vacancies, vacancyId, { target_hiring_date: extendedDate });
     },
     onSuccess: () => { toast.success("Target date extended"); setOpen(false); onDone(); },
     onError: (e: Error) => toast.error(e.message),
