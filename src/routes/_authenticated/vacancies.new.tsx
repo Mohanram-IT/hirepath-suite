@@ -2,8 +2,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { addDays, format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { COL, type ClientDoc } from "@/integrations/firebase/schema";
+import { createDocIn, listDocs, orderBy } from "@/integrations/firebase/db";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,10 +25,7 @@ function NewVacancy() {
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
-    queryFn: async () => {
-      const { data } = await supabase.from("clients").select("id, name").order("name");
-      return data ?? [];
-    },
+    queryFn: () => listDocs<ClientDoc>(COL.clients, orderBy("name")).catch(() => listDocs<ClientDoc>(COL.clients)),
   });
 
   const [form, setForm] = useState({
@@ -74,44 +72,45 @@ function NewVacancy() {
       if (!user) throw new Error("Not signed in");
 
       let clientId = form.client_id || null;
+      let clientName = clients.find((c) => c.id === form.client_id)?.name ?? null;
       if (!clientId && form.new_client_name.trim()) {
-        const { data, error } = await supabase
-          .from("clients")
-          .insert({ name: form.new_client_name.trim(), created_by: user.id })
-          .select("id")
-          .single();
-        if (error) throw error;
-        clientId = data.id;
+        clientName = form.new_client_name.trim();
+        clientId = await createDocIn(COL.clients, {
+          name: clientName,
+          contact_person: null,
+          contact_email: null,
+          notes: null,
+          created_by: user.id,
+        });
       }
 
       const targetDate =
-        form.vacancy_type === "replacement"
-          ? deploymentDeadline
-          : form.target_hiring_date || null;
+        form.vacancy_type === "replacement" ? deploymentDeadline : form.target_hiring_date || null;
 
-      const { data: vac, error } = await supabase
-        .from("vacancies")
-        .insert({
-          role: form.role,
-          client_id: clientId,
-          level: form.level,
-          location: form.location || null,
-          experience_min: form.experience_min ? Number(form.experience_min) : null,
-          experience_max: form.experience_max ? Number(form.experience_max) : null,
-          skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean),
-          openings: form.openings,
-          vacancy_type: form.vacancy_type,
-          target_hiring_date: targetDate,
-          description: form.description || null,
-          created_by: user.id,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
+      const vacancyId = await createDocIn(COL.vacancies, {
+        role: form.role,
+        description: form.description || null,
+        client_id: clientId,
+        client_name: clientName,
+        level: form.level,
+        status: "open",
+        vacancy_type: form.vacancy_type,
+        openings: form.openings,
+        location: form.location || null,
+        skills: form.skills.split(",").map((s) => s.trim()).filter(Boolean),
+        experience_min: form.experience_min ? Number(form.experience_min) : null,
+        experience_max: form.experience_max ? Number(form.experience_max) : null,
+        target_hiring_date: targetDate,
+        deployment_deadline: deploymentDeadline,
+        hiring_manager_id: null,
+        recruitment_manager_id: null,
+        created_by: user.id,
+        published: true,
+      });
 
       if (form.vacancy_type === "replacement") {
-        const { error: e2 } = await supabase.from("replacement_employees").insert({
-          vacancy_id: vac.id,
+        await createDocIn(COL.replacements, {
+          vacancy_id: vacancyId,
           employee_name: repl.employee_name,
           employee_code: repl.employee_code || null,
           resignation_date: repl.resignation_date,
@@ -120,9 +119,8 @@ function NewVacancy() {
           early_relieving_date: repl.early_relieving_date || null,
           deployment_deadline: deploymentDeadline,
         });
-        if (e2) throw e2;
       }
-      return vac.id;
+      return vacancyId;
     },
     onSuccess: (id) => {
       qc.invalidateQueries({ queryKey: ["vacancies"] });

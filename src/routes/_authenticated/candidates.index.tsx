@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { COL, type CandidateDoc, type ApplicationDoc } from "@/integrations/firebase/schema";
+import { listRecent, listDocs, toDate } from "@/integrations/firebase/db";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,17 +16,22 @@ export const Route = createFileRoute("/_authenticated/candidates/")({
 function CandidateList() {
   const [q, setQ] = useState("");
 
-  const { data: candidates = [], isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["candidates"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("candidates")
-        .select("*, candidate_applications(id, stage, vacancies(role))")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const [candidates, applications] = await Promise.all([
+        listRecent<CandidateDoc>(COL.candidates),
+        listDocs<ApplicationDoc>(COL.applications),
+      ]);
+      const counts = new Map<string, number>();
+      for (const a of applications) {
+        counts.set(a.candidate_id, (counts.get(a.candidate_id) ?? 0) + 1);
+      }
+      return candidates.map((c) => ({ ...c, application_count: counts.get(c.id) ?? 0 }));
     },
   });
+
+  const candidates = data ?? [];
 
   const filtered = candidates.filter((c) => {
     if (!q.trim()) return true;
@@ -70,29 +76,32 @@ function CandidateList() {
             <tbody className="divide-y">
               {isLoading && <tr><td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">Loading…</td></tr>}
               {!isLoading && filtered.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">No candidates yet.</td></tr>}
-              {filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-secondary/40">
-                  <td className="px-4 py-3" colSpan={6}>
-                    <Link to="/candidates/$id" params={{ id: c.id }} className="grid grid-cols-[2fr_2fr_100px_140px_100px_120px] gap-4 items-center -mx-4 -my-3 px-4 py-3">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          {c.full_name}
-                          {c.resume_url && <FileText className="size-3.5 text-muted-foreground" />}
+              {filtered.map((c) => {
+                const created = toDate(c.created_at);
+                return (
+                  <tr key={c.id} className="hover:bg-secondary/40">
+                    <td className="px-4 py-3" colSpan={6}>
+                      <Link to="/candidates/$id" params={{ id: c.id }} className="grid grid-cols-[2fr_2fr_100px_140px_100px_120px] gap-4 items-center -mx-4 -my-3 px-4 py-3">
+                        <div>
+                          <div className="font-medium flex items-center gap-2">
+                            {c.full_name}
+                            {c.resume_url && <FileText className="size-3.5 text-muted-foreground" />}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{c.email ?? "—"}</div>
                         </div>
-                        <div className="text-xs text-muted-foreground">{c.email ?? "—"}</div>
-                      </div>
-                      <div>
-                        <div>{c.current_title ?? "—"}</div>
-                        <div className="text-xs text-muted-foreground">{c.current_company ?? "—"}</div>
-                      </div>
-                      <span className="text-xs">{c.total_experience ? `${c.total_experience} yrs` : "—"}</span>
-                      <span className="text-xs text-muted-foreground">{c.location ?? "—"}</span>
-                      <span className="text-xs">{c.candidate_applications?.length ?? 0}</span>
-                      <span className="text-xs text-muted-foreground">{format(new Date(c.created_at), "PP")}</span>
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                        <div>
+                          <div>{c.current_title ?? "—"}</div>
+                          <div className="text-xs text-muted-foreground">{c.current_company ?? "—"}</div>
+                        </div>
+                        <span className="text-xs">{c.total_experience ? `${c.total_experience} yrs` : "—"}</span>
+                        <span className="text-xs text-muted-foreground">{c.location ?? "—"}</span>
+                        <span className="text-xs">{c.application_count}</span>
+                        <span className="text-xs text-muted-foreground">{created ? format(created, "PP") : "—"}</span>
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
