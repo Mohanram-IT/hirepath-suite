@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
+import { COL, type VacancyDoc, type ReplacementDoc } from "@/integrations/firebase/schema";
+import { listDocs, listRecent } from "@/integrations/firebase/db";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,28 +32,30 @@ function VacancyList() {
   const [type, setType] = useState<string>("all");
 
   const { data: vacancies = [], isLoading } = useQuery({
-    queryKey: ["vacancies", status, type, user?.id, isCandidate],
+    queryKey: ["vacancies", user?.id, isCandidate],
     queryFn: async () => {
-      let query = supabase
-        .from("vacancies")
-        .select("*, clients(name), replacement_employees(deployment_deadline)")
-        .order("created_at", { ascending: false });
-      if (isCandidate && user) query = query.eq("created_by", user.id);
-      if (status !== "all") query = query.eq("status", status as never);
-      if (type !== "all") query = query.eq("vacancy_type", type as never);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ?? [];
+      const [rows, replacements] = await Promise.all([
+        listRecent<VacancyDoc>(COL.vacancies),
+        listDocs<ReplacementDoc>(COL.replacements).catch(() => []),
+      ]);
+      const deadlineByVacancy = new Map(replacements.map((r) => [r.vacancy_id, r.deployment_deadline]));
+      return rows.map((v) => ({
+        ...v,
+        deployment_deadline: v.deployment_deadline ?? deadlineByVacancy.get(v.id) ?? null,
+      }));
     },
   });
 
   const filtered = vacancies.filter((v) => {
+    if (isCandidate && user && v.created_by !== user.id) return false;
+    if (status !== "all" && v.status !== status) return false;
+    if (type !== "all" && v.vacancy_type !== type) return false;
     if (!q.trim()) return true;
     const t = q.toLowerCase();
     return (
       v.role?.toLowerCase().includes(t) ||
       v.location?.toLowerCase().includes(t) ||
-      v.clients?.name?.toLowerCase().includes(t)
+      v.client_name?.toLowerCase().includes(t)
     );
   });
 
@@ -111,15 +114,14 @@ function VacancyList() {
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">{isCandidate ? "No vacancy requests yet." : "No vacancies found."}</td></tr>
               )}
               {filtered.map((v) => {
-                const repl = Array.isArray(v.replacement_employees) ? v.replacement_employees[0] : v.replacement_employees;
-                const targetDate = v.target_hiring_date ?? repl?.deployment_deadline ?? null;
-                const sla = computeSla(targetDate as string | null);
+                const targetDate = v.target_hiring_date ?? v.deployment_deadline ?? null;
+                const sla = computeSla(targetDate);
                 return (
                   <tr key={v.id} className="hover:bg-secondary/40 cursor-pointer">
                     <td className="px-4 py-3" colSpan={7}>
                       <Link to="/vacancies/$id" params={{ id: v.id }} className="grid grid-cols-[1fr_1fr_60px_1fr_120px_120px_120px] gap-4 items-center -mx-4 -my-3 px-4 py-3">
                         <span className="font-medium">{v.role}</span>
-                        <span className="text-muted-foreground">{v.clients?.name ?? "—"}</span>
+                        <span className="text-muted-foreground">{v.client_name ?? "—"}</span>
                         <span className="text-xs">{v.level}</span>
                         <span className="text-muted-foreground">{v.location ?? "—"}</span>
                         <span className="text-xs">{v.vacancy_type === "replacement" ? "Replacement" : "New"}</span>
