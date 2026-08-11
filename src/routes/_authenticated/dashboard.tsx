@@ -1,7 +1,8 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { COL, type ReplacementDoc, type VacancyDoc } from "@/integrations/firebase/schema";
+import { listDocs, listRecent } from "@/integrations/firebase/db";
 import { waitForFirebaseUser, getUserRoles } from "@/integrations/firebase/auth";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -27,12 +28,15 @@ function Dashboard() {
   const { data: vacancies = [] } = useQuery({
     queryKey: ["vacancies-all"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vacancies")
-        .select("*, clients(name), replacement_employees(*)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const [rows, replacements] = await Promise.all([
+        listRecent<VacancyDoc>(COL.vacancies),
+        listDocs<ReplacementDoc>(COL.replacements).catch(() => []),
+      ]);
+      const deadlineByVacancy = new Map(replacements.map((r) => [r.vacancy_id, r.deployment_deadline]));
+      return rows.map((v) => ({
+        ...v,
+        deployment_deadline: v.deployment_deadline ?? deadlineByVacancy.get(v.id) ?? null,
+      }));
     },
   });
 
@@ -43,11 +47,8 @@ function Dashboard() {
 
   const slaItems = vacancies
     .map((v) => {
-      const targetDate =
-        v.target_hiring_date ??
-        (Array.isArray(v.replacement_employees) ? v.replacement_employees[0]?.deployment_deadline : v.replacement_employees?.deployment_deadline) ??
-        null;
-      return { ...v, sla: computeSla(targetDate as string | null), targetDate };
+      const targetDate = v.target_hiring_date ?? v.deployment_deadline ?? null;
+      return { ...v, sla: computeSla(targetDate), targetDate };
     })
     .filter((v) => v.sla && v.status !== "closed" && v.status !== "cancelled")
     .sort((a, b) => (a.sla!.daysLeft - b.sla!.daysLeft));
@@ -84,7 +85,7 @@ function Dashboard() {
                 {slaItems.slice(0, 10).map((v) => (
                   <Link key={v.id} to="/vacancies/$id" params={{ id: v.id }} className="flex items-center gap-4 py-3 px-1 hover:bg-secondary/50 rounded">
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{v.role} <span className="text-muted-foreground font-normal">· {v.clients?.name ?? "—"}</span></div>
+                      <div className="font-medium truncate">{v.role} <span className="text-muted-foreground font-normal">· {v.client_name ?? "—"}</span></div>
                       <div className="text-xs text-muted-foreground">
                         {v.vacancy_type === "replacement" ? "Replacement" : "New"} · {v.level} · target {v.targetDate}
                       </div>
