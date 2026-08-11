@@ -1,6 +1,6 @@
-import type { Database } from "@/integrations/supabase/types";
+import type { PipelineStage } from "@/integrations/firebase/schema";
 
-export type PipelineStage = Database["public"]["Enums"]["pipeline_stage"];
+export type { PipelineStage };
 
 export const STAGES: { key: PipelineStage; label: string; tone: string }[] = [
   { key: "sourcing", label: "Sourcing", tone: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800" },

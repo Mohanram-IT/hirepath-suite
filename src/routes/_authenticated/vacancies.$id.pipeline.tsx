@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { COL, type ApplicationDoc, type CandidateDoc, type VacancyDoc } from "@/integrations/firebase/schema";
+import { createDocIn, getDocById, getDocsByIds, listRecent, updateDocIn, where } from "@/integrations/firebase/db";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { STAGES, type PipelineStage, stageTone } from "@/lib/pipeline";
+import { STAGES, type PipelineStage } from "@/lib/pipeline";
 import { ArrowLeft, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,7 +18,7 @@ type AppRow = {
   id: string;
   stage: PipelineStage;
   candidate_id: string;
-  candidates: { id: string; full_name: string; current_title: string | null; current_company: string | null } | null;
+  candidate: { full_name: string; current_title: string | null; current_company: string | null } | null;
 };
 
 function VacancyPipeline() {
@@ -29,35 +30,45 @@ function VacancyPipeline() {
 
   const { data: vacancy } = useQuery({
     queryKey: ["vacancy", id],
-    queryFn: async () => {
-      const { data } = await supabase.from("vacancies").select("id, role, clients(name)").eq("id", id).maybeSingle();
-      return data;
-    },
+    queryFn: () => getDocById<VacancyDoc>(COL.vacancies, id),
   });
 
   const { data: apps = [] } = useQuery<AppRow[]>({
     queryKey: ["vacancy-pipeline", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("candidate_applications")
-        .select("id, stage, candidate_id, candidates(id, full_name, current_title, current_company)")
-        .eq("vacancy_id", id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as AppRow[];
+      const rows = await listRecent<ApplicationDoc>(COL.applications, where("vacancy_id", "==", id));
+      const candidates = await getDocsByIds<CandidateDoc>(
+        COL.candidates,
+        rows.map((r) => r.candidate_id),
+      ).catch(() => []);
+      const byId = new Map(candidates.map((c) => [c.id, c]));
+      return rows.map((r) => {
+        const c = byId.get(r.candidate_id);
+        return {
+          id: r.id,
+          stage: r.stage,
+          candidate_id: r.candidate_id,
+          candidate: c
+            ? { full_name: c.full_name, current_title: c.current_title, current_company: c.current_company }
+            : r.candidate_name
+              ? { full_name: r.candidate_name, current_title: null, current_company: null }
+              : null,
+        };
+      });
     },
   });
 
   const moveStage = useMutation({
     mutationFn: async ({ appId, toStage, fromStage }: { appId: string; toStage: PipelineStage; fromStage: PipelineStage }) => {
       if (toStage === fromStage) return;
-      const { error } = await supabase.from("candidate_applications").update({ stage: toStage }).eq("id", appId);
-      if (error) throw error;
-      if (user) {
-        await supabase.from("stage_history").insert({
-          application_id: appId, from_stage: fromStage, to_stage: toStage, changed_by: user.id,
-        });
-      }
+      await updateDocIn(COL.applications, appId, { stage: toStage });
+      await createDocIn(COL.stageHistory, {
+        application_id: appId,
+        from_stage: fromStage,
+        to_stage: toStage,
+        note: null,
+        changed_by: user?.id ?? null,
+      });
     },
     onMutate: async ({ appId, toStage }) => {
       await qc.cancelQueries({ queryKey: ["vacancy-pipeline", id] });
@@ -86,7 +97,7 @@ function VacancyPipeline() {
     <div>
       <PageHeader
         title="Pipeline"
-        subtitle={vacancy ? `${vacancy.role} · ${vacancy.clients?.name ?? "—"}` : ""}
+        subtitle={vacancy ? `${vacancy.role} · ${vacancy.client_name ?? "—"}` : ""}
         actions={
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/vacancies/$id", params: { id } })}>
@@ -126,10 +137,10 @@ function VacancyPipeline() {
                         <GripVertical className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <Link to="/candidates/$id" params={{ id: a.candidate_id }} className="font-medium text-sm hover:underline block truncate">
-                            {a.candidates?.full_name}
+                            {a.candidate?.full_name ?? "—"}
                           </Link>
-                          <div className="text-xs text-muted-foreground truncate">{a.candidates?.current_title ?? "—"}</div>
-                          <div className="text-xs text-muted-foreground truncate">{a.candidates?.current_company ?? ""}</div>
+                          <div className="text-xs text-muted-foreground truncate">{a.candidate?.current_title ?? "—"}</div>
+                          <div className="text-xs text-muted-foreground truncate">{a.candidate?.current_company ?? ""}</div>
                         </div>
                       </div>
                     </div>

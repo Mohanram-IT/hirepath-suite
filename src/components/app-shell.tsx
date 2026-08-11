@@ -1,6 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle, Search, ClipboardList, Video, Shield } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
 import { firebaseSignOut } from "@/integrations/firebase/auth";
 import { Button } from "@/components/ui/button";
@@ -12,8 +11,9 @@ const staffNav = [
   { to: "/candidates", label: "Candidates", icon: Users },
   { to: "/interviews", label: "Interviews", icon: Video },
   { to: "/clients", label: "Clients", icon: Building2 },
-  { to: "/reports", label: "Reports", icon: BarChart3, soon: true },
 ] as const;
+
+const soonNav = [{ label: "Reports", icon: BarChart3 }] as const;
 
 const adminNav = [
   { to: "/admin/users", label: "Staff accounts", icon: Shield },
@@ -64,11 +64,26 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 <Icon className="size-4" />
                 <span>{n.label}</span>
-                {"soon" in n && n.soon && <span className="ml-auto text-[9px] uppercase tracking-wider opacity-50">soon</span>}
               </Link>
             );
           })}
+          {!isCandidate &&
+            soonNav.map((n) => {
+              const Icon = n.icon;
+              return (
+                <div
+                  key={n.label}
+                  aria-disabled="true"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/80 opacity-60 cursor-not-allowed"
+                >
+                  <Icon className="size-4" />
+                  <span>{n.label}</span>
+                  <span className="ml-auto text-[9px] uppercase tracking-wider opacity-70">soon</span>
+                </div>
+              );
+            })}
         </nav>
+
         <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
           <div className="flex items-center gap-2 px-2 text-xs">
             <UserCircle className="size-4 opacity-70" />

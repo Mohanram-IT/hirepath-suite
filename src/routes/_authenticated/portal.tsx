@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { COL, type ApplicationDoc, type CandidateDoc, type InterviewDoc } from "@/integrations/firebase/schema";
+import { listDocs, listRecent, listWhereIn, toDateSafe, where } from "@/integrations/firebase/db";
 import { PageHeader } from "@/components/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,38 +21,31 @@ function CandidatePortal() {
     queryKey: ["my-candidate", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data } = await supabase.from("candidates").select("*").eq("user_id", user!.id).maybeSingle();
-      return data;
+      const rows = await listDocs<CandidateDoc>(COL.candidates, where("user_id", "==", user!.id));
+      return rows[0] ?? null;
     },
   });
 
   const { data: applications = [] } = useQuery({
     queryKey: ["my-applications", candidate?.id],
     enabled: !!candidate,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("candidate_applications")
-        .select("id, stage, created_at, vacancy_id, vacancies(id, role, level, location, clients(name))")
-        .eq("candidate_id", candidate!.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => listRecent<ApplicationDoc>(COL.applications, where("candidate_id", "==", candidate!.id)),
   });
 
   const { data: interviews = [] } = useQuery({
-    queryKey: ["my-interviews", candidate?.id],
+    queryKey: ["my-interviews", candidate?.id, applications.length],
     enabled: !!candidate && applications.length > 0,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("interviews")
-        .select("*, candidate_applications(vacancy_id, vacancies(role))")
-        .in("application_id", applications.map((a) => a.id))
-        .order("scheduled_at", { ascending: true });
-      return data ?? [];
+      const rows = await listWhereIn<InterviewDoc>(
+        COL.interviews,
+        "application_id",
+        applications.map((a) => a.id),
+      );
+      return rows.sort((a, b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at)));
     },
   });
 
+  const roleByApp = new Map(applications.map((a) => [a.id, a.vacancy_role]));
   const upcoming = interviews.filter((i) => i.status === "scheduled" && isFuture(new Date(i.scheduled_at)));
 
   return (
@@ -62,7 +56,6 @@ function CandidatePortal() {
         actions={<Button asChild><Link to="/jobs"><Search className="size-4" /> Browse jobs</Link></Button>}
       />
 
-
       <div className="p-8 max-w-5xl space-y-8">
         {upcoming.length > 0 && (
           <div>
@@ -72,7 +65,7 @@ function CandidatePortal() {
                 <Card key={iv.id} className="border-accent/50">
                   <CardContent className="p-4 flex items-center justify-between gap-4">
                     <div>
-                      <div className="font-medium">{iv.candidate_applications?.vacancies?.role ?? "Interview"}</div>
+                      <div className="font-medium">{roleByApp.get(iv.application_id) ?? "Interview"}</div>
                       <div className="text-sm text-muted-foreground">
                         {iv.round_name && `${iv.round_name} · `}
                         {format(new Date(iv.scheduled_at), "PPp")} · {iv.duration_minutes} min
@@ -108,11 +101,9 @@ function CandidatePortal() {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="font-medium">{a.vacancies?.role ?? "—"}</div>
+                        <div className="font-medium">{a.vacancy_role ?? "—"}</div>
                         <div className="text-sm text-muted-foreground">
-                          {a.vacancies?.clients?.name ?? "—"}
-                          {a.vacancies?.location && ` · ${a.vacancies.location}`}
-                          {` · applied ${format(new Date(a.created_at), "PP")}`}
+                          applied {format(toDateSafe(a.created_at), "PP")}
                         </div>
                       </div>
                       <span className={`text-xs px-2.5 py-1 rounded-md border ${stageTone(a.stage)}`}>{stageLabel(a.stage)}</span>
@@ -121,13 +112,9 @@ function CandidatePortal() {
                 </Card>
               ))}
             </div>
-
           )}
         </div>
       </div>
     </div>
   );
 }
-
-
-

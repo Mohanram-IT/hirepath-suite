@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
+import { COL, type ClientDoc } from "@/integrations/firebase/schema";
+import { createDocIn, listDocs, orderBy } from "@/integrations/firebase/db";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,8 +25,11 @@ function ClientsPage() {
   const { data: clients = [] } = useQuery({
     queryKey: ["clients-full"],
     queryFn: async () => {
-      const { data } = await supabase.from("clients").select("*").order("name");
-      return data ?? [];
+      try {
+        return await listDocs<ClientDoc>(COL.clients, orderBy("name"));
+      } catch {
+        return await listDocs<ClientDoc>(COL.clients);
+      }
     },
   });
 
@@ -34,10 +38,21 @@ function ClientsPage() {
 
   const create = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("clients").insert({ ...form, created_by: user?.id });
-      if (error) throw error;
+      await createDocIn(COL.clients, {
+        name: form.name.trim(),
+        contact_person: form.contact_person || null,
+        contact_email: form.contact_email || null,
+        notes: form.notes || null,
+        created_by: user?.id ?? null,
+      });
     },
-    onSuccess: () => { toast.success("Client added"); setOpen(false); setForm({ name: "", contact_person: "", contact_email: "", notes: "" }); qc.invalidateQueries({ queryKey: ["clients-full"] }); qc.invalidateQueries({ queryKey: ["clients"] }); },
+    onSuccess: () => {
+      toast.success("Client added");
+      setOpen(false);
+      setForm({ name: "", contact_person: "", contact_email: "", notes: "" });
+      qc.invalidateQueries({ queryKey: ["clients-full"] });
+      qc.invalidateQueries({ queryKey: ["clients"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
