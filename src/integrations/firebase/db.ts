@@ -107,7 +107,8 @@ export async function getDocsByIds<T = DocumentData>(
 ): Promise<(T & { id: string })[]> {
   const unique = [...new Set(ids.filter(Boolean))];
   const rows = await Promise.all(unique.map((id) => getDocById<T>(collectionName, id)));
-  return rows.filter((r): r is T & { id: string } => r !== null);
+  return rows.filter((r) => r !== null) as (T & { id: string })[];
+
 }
 
 /** `where(field, 'in', …)` is capped at 30 values — this batches transparently. */
