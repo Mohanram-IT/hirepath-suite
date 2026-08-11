@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { waitForFirebaseUser } from "@/integrations/firebase/auth";
+import { COL, type ApplicationDoc, type CandidateDoc, type VacancyDoc } from "@/integrations/firebase/schema";
+import { createDocIn, getDocById, listDocs, updateDocIn, where } from "@/integrations/firebase/db";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
@@ -13,6 +14,16 @@ import { ArrowLeft, MapPin, Briefcase, Send, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/jobs/$id")({
   ssr: false,
+  head: () => ({
+    meta: [
+      { title: "Job opening — TalentFlow" },
+      { name: "description", content: "Role details and one-click apply for this IT opening on TalentFlow." },
+      { property: "og:title", content: "Job opening — TalentFlow" },
+      { property: "og:description", content: "Role details and one-click apply for this IT opening on TalentFlow." },
+      { property: "og:type", content: "article" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: JobDetail,
 });
 
@@ -22,27 +33,24 @@ function JobDetail() {
 
   const { data: job, isLoading } = useQuery({
     queryKey: ["public-job", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vacancies")
-        .select("id, role, level, location, skills, description, experience_min, experience_max, vacancy_type, created_at, clients(name)")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => getDocById<VacancyDoc>(COL.vacancies, id),
   });
 
   const { data: userInfo } = useQuery({
-    queryKey: ["public-job-user"],
+    queryKey: ["public-job-user", id],
     queryFn: async () => {
       const user = await waitForFirebaseUser();
-      if (!user) return { user: null, candidate: null, alreadyApplied: false };
-      const { data: c } = await supabase.from("candidates").select("id").eq("user_id", user.uid).maybeSingle();
+      if (!user) return { user: null, candidate: null as (CandidateDoc & { id: string }) | null, alreadyApplied: false };
+      const candidates = await listDocs<CandidateDoc>(COL.candidates, where("user_id", "==", user.uid));
+      const c = candidates[0] ?? null;
       let alreadyApplied = false;
       if (c) {
-        const { data: app } = await supabase.from("candidate_applications").select("id").eq("candidate_id", c.id).eq("vacancy_id", id).maybeSingle();
-        alreadyApplied = !!app;
+        const apps = await listDocs<ApplicationDoc>(
+          COL.applications,
+          where("candidate_id", "==", c.id),
+          where("vacancy_id", "==", id),
+        );
+        alreadyApplied = apps.length > 0;
       }
       return { user, candidate: c, alreadyApplied };
     },
@@ -64,7 +72,7 @@ function JobDetail() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">{job.role}</h1>
           <div className="text-muted-foreground flex flex-wrap gap-x-5 gap-y-1 mt-2 text-sm">
-            <span className="flex items-center gap-1"><Briefcase className="size-3.5" /> {job.clients?.name ?? "—"}</span>
+            <span className="flex items-center gap-1"><Briefcase className="size-3.5" /> {job.client_name ?? "—"}</span>
             {job.location && <span className="flex items-center gap-1"><MapPin className="size-3.5" /> {job.location}</span>}
             <span>{job.level}</span>
             {(job.experience_min || job.experience_max) && <span>{job.experience_min ?? "?"}–{job.experience_max ?? "?"} yrs</span>}
@@ -105,7 +113,12 @@ function JobDetail() {
               </div>
             </div>
           ) : (
-            <ApplyDialog vacancyId={id} candidateId={userInfo.candidate?.id} userId={userInfo.user.uid} />
+            <ApplyDialog
+              vacancyId={id}
+              vacancyRole={job.role}
+              candidate={userInfo.candidate}
+              userId={userInfo.user.uid}
+            />
           )}
         </div>
       </article>
@@ -113,10 +126,20 @@ function JobDetail() {
   );
 }
 
-function ApplyDialog({ vacancyId, candidateId, userId }: { vacancyId: string; candidateId: string | undefined; userId: string }) {
+function ApplyDialog({
+  vacancyId,
+  vacancyRole,
+  candidate,
+  userId,
+}: {
+  vacancyId: string;
+  vacancyRole: string;
+  candidate: (CandidateDoc & { id: string }) | null;
+  userId: string;
+}) {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState("");
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeUrl, setResumeUrl] = useState("");
   const [experience, setExperience] = useState("");
   const [skills, setSkills] = useState("");
   const [currentCtc, setCurrentCtc] = useState("");
@@ -125,46 +148,44 @@ function ApplyDialog({ vacancyId, candidateId, userId }: { vacancyId: string; ca
 
   const apply = useMutation({
     mutationFn: async () => {
-      let cid = candidateId;
+      const cid = candidate?.id;
       if (!cid) throw new Error("Candidate profile missing — please sign out and back in.");
 
       if (!experience.trim() || !skills.trim() || !expectedCtc.trim() || !noticePeriod.trim()) {
         throw new Error("Please fill experience, skills, expected CTC and notice period.");
       }
 
-      // Prevent duplicates
-      const { data: existing } = await supabase
-        .from("candidate_applications")
-        .select("id")
-        .eq("candidate_id", cid)
-        .eq("vacancy_id", vacancyId)
-        .maybeSingle();
-      if (existing) throw new Error("You've already applied to this position.");
-
-      let resumePath: string | undefined;
-      if (resumeFile) {
-        const path = `${userId}/${Date.now()}-${resumeFile.name}`;
-        const { error: upErr } = await supabase.storage.from("resumes").upload(path, resumeFile);
-        if (upErr) throw upErr;
-        resumePath = path;
-      }
+      const existing = await listDocs<ApplicationDoc>(
+        COL.applications,
+        where("candidate_id", "==", cid),
+        where("vacancy_id", "==", vacancyId),
+      );
+      if (existing.length > 0) throw new Error("You've already applied to this position.");
 
       const skillsArr = skills.split(",").map((s) => s.trim()).filter(Boolean);
-      const { error: updErr } = await supabase.from("candidates").update({
+      await updateDocIn(COL.candidates, cid, {
         total_experience: Number(experience) || null,
         skills: skillsArr,
         current_ctc: currentCtc ? Number(currentCtc) : null,
         expected_ctc: Number(expectedCtc),
         notice_period_days: Number(noticePeriod),
-        ...(resumePath ? { resume_url: resumePath } : {}),
-      }).eq("id", cid);
-      if (updErr) throw updErr;
-
-      const { error } = await supabase.from("candidate_applications").insert({
-        candidate_id: cid, vacancy_id: vacancyId, created_by: userId, stage: "screening",
+        ...(resumeUrl.trim() ? { resume_url: resumeUrl.trim() } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
-      if (error) throw error;
 
+      await createDocIn(COL.applications, {
+        candidate_id: cid,
+        candidate_user_id: userId,
+        candidate_name: candidate?.full_name ?? null,
+        vacancy_id: vacancyId,
+        vacancy_role: vacancyRole,
+        stage: "screening",
+        score: null,
+        assigned_recruiter: null,
+        hiring_manager_feedback: null,
+        rejection_reason: null,
+        created_by: userId,
+      });
     },
     onSuccess: () => { toast.success("Application submitted!"); setOpen(false); window.location.href = "/portal"; },
     onError: (e: Error) => toast.error(e.message),
@@ -201,8 +222,9 @@ function ApplyDialog({ vacancyId, candidateId, userId }: { vacancyId: string; ca
             <Input value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="React, Node.js, PostgreSQL" />
           </div>
           <div>
-            <Label>Resume (PDF)</Label>
-            <Input type="file" accept=".pdf,.doc,.docx" onChange={(e) => setResumeFile(e.target.files?.[0] ?? null)} />
+            <Label>Resume link (Google Drive / Dropbox)</Label>
+            <Input value={resumeUrl} onChange={(e) => setResumeUrl(e.target.value)} placeholder="https://…" />
+            <p className="text-xs text-muted-foreground mt-1">File uploads arrive in the next phase — share a link for now.</p>
           </div>
           <div>
             <Label>Cover note (optional)</Label>
