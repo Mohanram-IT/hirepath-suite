@@ -54,21 +54,31 @@ export function AppShell({ children }: { children: ReactNode }) {
           {[...nav, ...(isAdmin && !isCandidate ? adminNav : [])].map((n) => {
             const active = pathname.startsWith(n.to);
             const Icon = n.icon;
-            return (
-              <Link
-                key={n.to}
-                to={n.to}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition ${
-                  active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60 text-sidebar-foreground/80"
-                }`}
-              >
+            const cls = `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition ${
+              active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60 text-sidebar-foreground/80"
+            }`;
+            const inner = (
+              <>
                 <Icon className="size-4" />
                 <span>{n.label}</span>
                 {"soon" in n && n.soon && <span className="ml-auto text-[9px] uppercase tracking-wider opacity-50">soon</span>}
+              </>
+            );
+            if ("soon" in n && n.soon) {
+              return (
+                <div key={n.to} className={`${cls} cursor-not-allowed opacity-60`} aria-disabled="true">
+                  {inner}
+                </div>
+              );
+            }
+            return (
+              <Link key={n.to} to={n.to} className={cls}>
+                {inner}
               </Link>
             );
           })}
         </nav>
+
         <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
           <div className="flex items-center gap-2 px-2 text-xs">
             <UserCircle className="size-4 opacity-70" />
