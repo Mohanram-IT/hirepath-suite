@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { COL, type VacancyDoc } from "@/integrations/firebase/schema";
+import { listRecent, toDateSafe } from "@/integrations/firebase/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, MapPin, Briefcase, ArrowRight } from "lucide-react";
@@ -13,6 +14,10 @@ export const Route = createFileRoute("/jobs/")({
     meta: [
       { title: "Open jobs — TalentFlow" },
       { name: "description", content: "Browse live IT openings on TalentFlow and apply in one click." },
+      { property: "og:title", content: "Open jobs — TalentFlow" },
+      { property: "og:description", content: "Browse live IT openings on TalentFlow and apply in one click." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: JobsList,
@@ -24,13 +29,8 @@ function JobsList() {
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ["public-jobs"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vacancies")
-        .select("id, role, level, location, skills, experience_min, experience_max, created_at, vacancy_type, clients(name)")
-        .in("status", ["open", "in_progress"])
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const rows = await listRecent<VacancyDoc>(COL.vacancies);
+      return rows.filter((v) => v.status === "open" || v.status === "in_progress");
     },
   });
 
@@ -41,7 +41,7 @@ function JobsList() {
       j.role.toLowerCase().includes(s) ||
       (j.location ?? "").toLowerCase().includes(s) ||
       (j.skills ?? []).some((k) => k.toLowerCase().includes(s)) ||
-      (j.clients?.name ?? "").toLowerCase().includes(s)
+      (j.client_name ?? "").toLowerCase().includes(s)
     );
   });
 
@@ -77,10 +77,9 @@ function JobsList() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-semibold text-lg group-hover:text-accent transition">{j.role}</h3>
-                    {j.vacancy_type === "replacement" && <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 px-1.5 py-0.5 rounded">Replacement</span>}
                   </div>
                   <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
-                    <span className="flex items-center gap-1"><Briefcase className="size-3" /> {j.clients?.name ?? "—"}</span>
+                    <span className="flex items-center gap-1"><Briefcase className="size-3" /> {j.client_name ?? "—"}</span>
                     {j.location && <span className="flex items-center gap-1"><MapPin className="size-3" /> {j.location}</span>}
                     <span>{j.level}</span>
                     {(j.experience_min || j.experience_max) && <span>{j.experience_min ?? "?"}–{j.experience_max ?? "?"} yrs</span>}
@@ -90,7 +89,7 @@ function JobsList() {
                   </div>
                 </div>
                 <div className="text-right text-xs text-muted-foreground shrink-0">
-                  <div>{format(new Date(j.created_at), "PP")}</div>
+                  <div>{format(toDateSafe(j.created_at), "PP")}</div>
                   <ArrowRight className="size-4 mt-2 ml-auto group-hover:translate-x-1 transition" />
                 </div>
               </div>
