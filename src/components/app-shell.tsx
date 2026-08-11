@@ -1,6 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Briefcase, Users, Building2, BarChart3, LogOut, UserCircle, Search, ClipboardList, Video, Shield } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRoles } from "@/hooks/use-auth";
 import { firebaseSignOut } from "@/integrations/firebase/auth";
 import { Button } from "@/components/ui/button";
@@ -12,8 +11,9 @@ const staffNav = [
   { to: "/candidates", label: "Candidates", icon: Users },
   { to: "/interviews", label: "Interviews", icon: Video },
   { to: "/clients", label: "Clients", icon: Building2 },
-  { to: "/reports", label: "Reports", icon: BarChart3, soon: true },
 ] as const;
+
+const soonNav = [{ label: "Reports", icon: BarChart3 }] as const;
 
 const adminNav = [
   { to: "/admin/users", label: "Staff accounts", icon: Shield },
@@ -54,29 +54,34 @@ export function AppShell({ children }: { children: ReactNode }) {
           {[...nav, ...(isAdmin && !isCandidate ? adminNav : [])].map((n) => {
             const active = pathname.startsWith(n.to);
             const Icon = n.icon;
-            const cls = `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition ${
-              active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60 text-sidebar-foreground/80"
-            }`;
-            const inner = (
-              <>
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition ${
+                  active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60 text-sidebar-foreground/80"
+                }`}
+              >
                 <Icon className="size-4" />
                 <span>{n.label}</span>
-                {"soon" in n && n.soon && <span className="ml-auto text-[9px] uppercase tracking-wider opacity-50">soon</span>}
-              </>
-            );
-            if ("soon" in n && n.soon) {
-              return (
-                <div key={n.to} className={`${cls} cursor-not-allowed opacity-60`} aria-disabled="true">
-                  {inner}
-                </div>
-              );
-            }
-            return (
-              <Link key={n.to} to={n.to} className={cls}>
-                {inner}
               </Link>
             );
           })}
+          {!isCandidate &&
+            soonNav.map((n) => {
+              const Icon = n.icon;
+              return (
+                <div
+                  key={n.label}
+                  aria-disabled="true"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/80 opacity-60 cursor-not-allowed"
+                >
+                  <Icon className="size-4" />
+                  <span>{n.label}</span>
+                  <span className="ml-auto text-[9px] uppercase tracking-wider opacity-70">soon</span>
+                </div>
+              );
+            })}
         </nav>
 
         <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
