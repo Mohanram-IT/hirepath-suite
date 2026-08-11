@@ -100,6 +100,16 @@ export async function deleteDocIn(collectionName: string, id: string) {
   await deleteDoc(doc(firestore, collectionName, id));
 }
 
+/** Batch-fetch docs by id (Firestore has no `whereIn` on document id in the SDK). */
+export async function getDocsByIds<T = DocumentData>(
+  collectionName: string,
+  ids: string[],
+): Promise<(T & { id: string })[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  const rows = await Promise.all(unique.map((id) => getDocById<T>(collectionName, id)));
+  return rows.filter((r): r is T & { id: string } => r !== null);
+}
+
 /** `where(field, 'in', …)` is capped at 30 values — this batches transparently. */
 export async function listWhereIn<T = DocumentData>(
   collectionName: string,

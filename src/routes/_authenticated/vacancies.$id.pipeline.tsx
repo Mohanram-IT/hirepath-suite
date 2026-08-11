@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { COL, type ApplicationDoc, type CandidateDoc, type VacancyDoc } from "@/integrations/firebase/schema";
-import { createDocIn, getDocById, listRecent, listWhereIn, updateDocIn, where } from "@/integrations/firebase/db";
+import { createDocIn, getDocById, getDocsByIds, listRecent, updateDocIn, where } from "@/integrations/firebase/db";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { STAGES, type PipelineStage } from "@/lib/pipeline";
@@ -37,9 +37,8 @@ function VacancyPipeline() {
     queryKey: ["vacancy-pipeline", id],
     queryFn: async () => {
       const rows = await listRecent<ApplicationDoc>(COL.applications, where("vacancy_id", "==", id));
-      const candidates = await listWhereIn<CandidateDoc>(
+      const candidates = await getDocsByIds<CandidateDoc>(
         COL.candidates,
-        "__name__",
         rows.map((r) => r.candidate_id),
       ).catch(() => []);
       const byId = new Map(candidates.map((c) => [c.id, c]));
