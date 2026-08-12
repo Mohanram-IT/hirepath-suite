@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ResumeUpload } from "@/components/resume-upload";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/_authenticated/candidates/new")({
   component: NewCandidate,
@@ -96,13 +98,11 @@ function NewCandidate() {
 
         <Card>
           <CardHeader><CardTitle className="text-base">Resume</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <Field label="Resume link">
-              <Input value={form.resume_link} onChange={(e) => setForm({ ...form, resume_link: e.target.value })} placeholder="https://drive.google.com/… or any shareable link" />
-            </Field>
-            <p className="text-xs text-muted-foreground">File uploads move to hosted storage in a later phase — paste a shareable link for now.</p>
+          <CardContent>
+            <ResumeUpload value={form.resume_link} onChange={(url) => setForm({ ...form, resume_link: url })} label="Resume file or link" />
           </CardContent>
         </Card>
+
 
         <div className="flex gap-3 justify-end">
           <Button type="button" variant="ghost" onClick={() => navigate({ to: "/candidates" })}>Cancel</Button>
