@@ -12,7 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { ResumeUpload } from "@/components/resume-upload";
 import { stageTone, stageLabel } from "@/lib/pipeline";
+
 import { queueNotification } from "@/lib/notify";
 import { toast } from "sonner";
 import { ArrowLeft, FileText, Mail, Phone, MapPin, Briefcase, Plus, Calendar, Video, XCircle } from "lucide-react";
@@ -84,6 +86,15 @@ function CandidateDetail() {
                   <a href={candidate.resume_url} target="_blank" rel="noreferrer"><FileText className="size-4" /> View resume</a>
                 </Button>
               )}
+              <ResumeUpload
+                value={candidate.resume_url ?? ""}
+                label={candidate.resume_url ? "Replace resume" : "Attach resume"}
+                onChange={async (url) => {
+                  await updateDocIn(COL.candidates, id, { resume_url: url || null });
+                  qc.invalidateQueries({ queryKey: ["candidate", id] });
+                }}
+              />
+
             </CardContent>
           </Card>
           <Card>

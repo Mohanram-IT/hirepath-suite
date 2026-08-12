@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ResumeUpload } from "@/components/resume-upload";
+
 import { toast } from "sonner";
 import { ArrowLeft, MapPin, Briefcase, Send, CheckCircle2 } from "lucide-react";
 
@@ -221,11 +223,8 @@ function ApplyDialog({
             <Label>Skills * (comma separated)</Label>
             <Input value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="React, Node.js, PostgreSQL" />
           </div>
-          <div>
-            <Label>Resume link (Google Drive / Dropbox)</Label>
-            <Input value={resumeUrl} onChange={(e) => setResumeUrl(e.target.value)} placeholder="https://…" />
-            <p className="text-xs text-muted-foreground mt-1">File uploads arrive in the next phase — share a link for now.</p>
-          </div>
+          <ResumeUpload value={resumeUrl} onChange={setResumeUrl} label="Resume" />
+
           <div>
             <Label>Cover note (optional)</Label>
             <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Why are you a great fit?" />
